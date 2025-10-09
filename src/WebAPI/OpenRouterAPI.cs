@@ -25,7 +25,8 @@ public static class OpenRouterAPI
             "models": [
                 {
                     "id": "model-id",
-                    "name": "Model Name"
+                    "name": "Model Name",
+                    "supportsVision": true
                 }
             ]
         }
@@ -64,10 +65,29 @@ public static class OpenRouterAPI
             JArray formattedModels = new JArray();
             foreach (JObject model in models)
             {
+                // Check if model supports vision/multimodal capabilities
+                bool supportsVision = false;
+                JToken architecture = model["architecture"];
+                if (architecture != null)
+                {
+                    string archStr = architecture.ToString().ToLower();
+                    // Common vision model indicators
+                    supportsVision = archStr.Contains("vision") || archStr.Contains("multimodal");
+                }
+                
+                // Also check model ID for vision indicators
+                string modelId = model["id"]?.ToString() ?? "";
+                if (modelId.Contains("vision") || modelId.Contains("gpt-4") || modelId.Contains("claude-3") || 
+                    modelId.Contains("gemini") || modelId.Contains("pixtral"))
+                {
+                    supportsVision = true;
+                }
+
                 formattedModels.Add(new JObject()
                 {
                     ["id"] = model["id"],
-                    ["name"] = model["name"] ?? model["id"]
+                    ["name"] = model["name"] ?? model["id"],
+                    ["supportsVision"] = supportsVision
                 });
             }
 
@@ -90,7 +110,9 @@ public static class OpenRouterAPI
         Session session,
         [API.APIParameter("The model ID to use for refinement.")] string modelId,
         [API.APIParameter("The prompt or image tags to refine.")] string sourceText,
-        [API.APIParameter("Whether the source is from image tags (true) or text prompt (false).")] bool isImageTags = false)
+        [API.APIParameter("Whether the source is from image tags (true) or text prompt (false).")] bool isImageTags = false,
+        [API.APIParameter("Custom system prompt to use (optional).")] string systemPrompt = null,
+        [API.APIParameter("Whether to bypass sending image data even if available.")] bool bypassVision = false)
     {
         string apiKey = session.User.GetGenericData("openrouter_api", "key");
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -110,9 +132,13 @@ public static class OpenRouterAPI
 
         try
         {
-            string systemPrompt = isImageTags
-                ? "You are a helpful AI assistant. The user will provide image tags. Your task is to convert these tags into a well-structured, coherent prompt for image generation. Keep the core concepts but make the text flow naturally."
-                : "You are a helpful AI assistant. The user will provide a prompt for image generation. Your task is to refine and improve it while keeping the core concepts. Make it more descriptive, coherent, and effective for generating high-quality images.";
+            // Use custom system prompt if provided, otherwise use defaults
+            if (string.IsNullOrWhiteSpace(systemPrompt))
+            {
+                systemPrompt = isImageTags
+                    ? "You are a helpful AI assistant. The user will provide image tags. Your task is to convert these tags into a well-structured, coherent prompt for image generation. Keep the core concepts but make the text flow naturally."
+                    : "You are a helpful AI assistant. The user will provide a prompt for image generation. Your task is to refine and improve it while keeping the core concepts. Make it more descriptive, coherent, and effective for generating high-quality images.";
+            }
 
             JObject requestBody = new JObject()
             {

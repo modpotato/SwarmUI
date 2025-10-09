@@ -57,6 +57,16 @@
                 <option value="">Loading models...</option>
             </select>
         </div>
+        <div id="llm_refine_system_prompt_container" style="margin-bottom: 10px;">
+            <label for="llm_refine_system_prompt" class="translate">System Prompt (optional):</label>
+            <textarea id="llm_refine_system_prompt" class="auto-text auto-text-block" rows="2" placeholder="Leave empty to use default system prompt..."></textarea>
+        </div>
+        <div id="llm_refine_vision_bypass_container" style="margin-bottom: 10px;">
+            <span class="form-check form-switch display-inline-block">
+                <input type="checkbox" class="form-check-input" id="llm_refine_vision_bypass" title="If checked, will not attempt to send image data even when available (useful for non-vision models)">
+                <label class="form-check-label translate" for="llm_refine_vision_bypass">Bypass Vision (use text only)</label>
+            </span>
+        </div>
         <div id="llm_refine_source_info" style="margin-bottom: 10px;">
             <b class="translate">Source:</b> <span id="llm_refine_source_display"></span>
         </div>

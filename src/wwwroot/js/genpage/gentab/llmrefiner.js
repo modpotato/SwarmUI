@@ -77,6 +77,7 @@ class LLMPromptRefiner {
                 let option = document.createElement('option');
                 option.value = model.id;
                 option.textContent = model.name;
+                option.dataset.supportsVision = model.supportsVision || false;
                 optgroup.appendChild(option);
             });
             select.appendChild(optgroup);
@@ -89,10 +90,14 @@ class LLMPromptRefiner {
                 let option = document.createElement('option');
                 option.value = model.id;
                 option.textContent = model.name;
+                option.dataset.supportsVision = model.supportsVision || false;
                 optgroup.appendChild(option);
             });
             select.appendChild(optgroup);
         }
+
+        // Add change listener to handle vision support warnings
+        select.addEventListener('change', () => this.checkVisionSupport());
     }
 
     /**
@@ -115,6 +120,32 @@ class LLMPromptRefiner {
 
         // Show modal
         $('#llm_prompt_refine_modal').modal('show');
+    }
+
+    /**
+     * Check if the selected model supports vision and show warning if needed.
+     */
+    checkVisionSupport() {
+        let modelSelect = document.getElementById('llm_refine_model_select');
+        let bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
+        let statusDiv = document.getElementById('llm_refine_status');
+        
+        if (!modelSelect || !modelSelect.value) {
+            return;
+        }
+
+        let selectedOption = modelSelect.options[modelSelect.selectedIndex];
+        let supportsVision = selectedOption.dataset.supportsVision === 'true';
+
+        // If using image tags and model doesn't support vision, show warning and auto-check bypass
+        if (this.currentSourceType === 'image_tags' && !supportsVision && !bypassCheckbox.checked) {
+            statusDiv.textContent = 'Warning: Selected model may not support vision. "Bypass Vision" has been enabled.';
+            statusDiv.style.color = '#ff8800';
+            bypassCheckbox.checked = true;
+        } else {
+            statusDiv.textContent = '';
+            statusDiv.style.color = '#666';
+        }
     }
 
     /**
@@ -178,7 +209,21 @@ class LLMPromptRefiner {
         document.getElementById('llm_apply_button').style.display = 'none';
         document.getElementById('llm_refine_button').disabled = false;
         document.getElementById('llm_refine_status').textContent = '';
+        document.getElementById('llm_refine_status').style.color = '#666';
         document.getElementById('llm_refine_modal_error').textContent = '';
+        
+        // Clear custom system prompt
+        let systemPromptInput = document.getElementById('llm_refine_system_prompt');
+        if (systemPromptInput) {
+            systemPromptInput.value = '';
+        }
+        
+        // Uncheck vision bypass by default
+        let bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
+        if (bypassCheckbox) {
+            bypassCheckbox.checked = false;
+        }
+        
         this.refinedPrompt = null;
     }
 
@@ -188,6 +233,8 @@ class LLMPromptRefiner {
     async refinePrompt() {
         let modelSelect = document.getElementById('llm_refine_model_select');
         let modelId = modelSelect.value;
+        let systemPromptInput = document.getElementById('llm_refine_system_prompt');
+        let bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
 
         if (!modelId) {
             this.showError('Please select a model.');
@@ -199,20 +246,33 @@ class LLMPromptRefiner {
             return;
         }
 
+        // Get custom system prompt if provided
+        let customSystemPrompt = systemPromptInput ? systemPromptInput.value.trim() : '';
+        let bypassVision = bypassCheckbox ? bypassCheckbox.checked : false;
+
         // Disable refine button and show status
         document.getElementById('llm_refine_button').disabled = true;
         document.getElementById('llm_refine_status').textContent = 'Refining prompt...';
+        document.getElementById('llm_refine_status').style.color = '#666';
         this.showError('');
 
         try {
+            let requestBody = {
+                modelId: modelId,
+                sourceText: this.currentSource,
+                isImageTags: this.currentSourceType === 'image_tags',
+                bypassVision: bypassVision
+            };
+
+            // Add custom system prompt if provided
+            if (customSystemPrompt) {
+                requestBody.systemPrompt = customSystemPrompt;
+            }
+
             let response = await fetch('/API/RefinePromptWithOpenRouter', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    modelId: modelId,
-                    sourceText: this.currentSource,
-                    isImageTags: this.currentSourceType === 'image_tags'
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -231,6 +291,7 @@ class LLMPromptRefiner {
             this.refinedPrompt = data.refined_prompt;
             this.displayRefinedPrompt();
             document.getElementById('llm_refine_status').textContent = 'Refinement complete!';
+            document.getElementById('llm_refine_status').style.color = '#0a0';
 
         } catch (error) {
             console.error('Error refining prompt:', error);
