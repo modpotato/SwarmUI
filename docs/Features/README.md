@@ -4,6 +4,7 @@ See [The Docs Readme](/docs/README.md) for general listing of documentation and 
 
 - [Presets](/docs/Features/Presets.md) for info about presets, and a download of an official list of high quality SDXL presets.
 - [Prompt Syntax](/docs/Features/Prompt%20Syntax.md) for info about prompt syntax - the various features available by just typing into the prompt box.
+- [LLM Prompt Refinement](/docs/Features/LLMPromptRefinement.md) for info about using LLMs to refine and improve your prompts.
 - [Autocompletions](/docs/Features/Autocompletions.md) for details about the prompt autocompletions engine.
 - [Image Prompting](/docs/Features/ImagePrompting.md) for details about image-prompting with IP-Adapter, ReVision, etc.
 - [ControlNet](/docs/Features/ControlNet.md) for info about using ControlNets.
