@@ -13,17 +13,9 @@ class LLMPromptRefiner {
      */
     async init() {
         try {
-            let response = await fetch('/API/GetOpenRouterModels', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+            let data = await new Promise((resolve, reject) => {
+                genericRequest('GetOpenRouterModels', {}, resolve, 0, reject);
             });
-            
-            if (!response.ok) {
-                console.error('Failed to fetch OpenRouter models');
-                return;
-            }
-
-            let data = await response.json();
             
             if (data.error) {
                 console.error('OpenRouter API error:', data.error);
@@ -204,18 +196,54 @@ class LLMPromptRefiner {
      * Reset the UI to initial state.
      */
     resetUI() {
-        document.getElementById('llm_refine_result_container').style.display = 'none';
-        document.getElementById('llm_refine_diff_container').style.display = 'none';
-        document.getElementById('llm_apply_button').style.display = 'none';
-        document.getElementById('llm_refine_button').disabled = false;
-        document.getElementById('llm_refine_status').textContent = '';
-        document.getElementById('llm_refine_status').style.color = '#666';
-        document.getElementById('llm_refine_modal_error').textContent = '';
+        let resultContainer = document.getElementById('llm_refine_result_container');
+        if (resultContainer) {
+            resultContainer.style.display = 'none';
+        }
+
+        let diffContainer = document.getElementById('llm_refine_diff_container');
+        if (diffContainer) {
+            diffContainer.style.display = 'none';
+        }
+
+        let diffDisplay = document.getElementById('llm_refine_diff_display');
+        if (diffDisplay) {
+            diffDisplay.innerHTML = '<div style="opacity: 0.6; font-style: italic;">No changes yet.</div>';
+        }
+
+        let refineButton = document.getElementById('llm_refine_button');
+        if (refineButton) {
+            refineButton.disabled = false;
+            refineButton.classList.remove('btn-info');
+            if (!refineButton.classList.contains('btn-primary')) {
+                refineButton.classList.add('btn-primary');
+            }
+        }
+
+        let applyButton = document.getElementById('llm_apply_button');
+        if (applyButton) {
+            applyButton.style.display = 'none';
+            applyButton.classList.remove('btn-info');
+            if (!applyButton.classList.contains('btn-success')) {
+                applyButton.classList.add('btn-success');
+            }
+        }
+
+        let status = document.getElementById('llm_refine_status');
+        if (status) {
+            status.textContent = '';
+            status.style.color = '#666';
+        }
+
+        let modalError = document.getElementById('llm_refine_modal_error');
+        if (modalError) {
+            modalError.textContent = '';
+        }
         
-        // Clear custom system prompt
-        let systemPromptInput = document.getElementById('llm_refine_system_prompt');
-        if (systemPromptInput) {
-            systemPromptInput.value = '';
+        // Clear additional user instructions
+        let userPromptInput = document.getElementById('llm_refine_user_prompt');
+        if (userPromptInput) {
+            userPromptInput.value = '';
         }
         
         // Uncheck vision bypass by default
@@ -232,9 +260,11 @@ class LLMPromptRefiner {
      */
     async refinePrompt() {
         let modelSelect = document.getElementById('llm_refine_model_select');
-        let modelId = modelSelect.value;
-        let systemPromptInput = document.getElementById('llm_refine_system_prompt');
+        let modelId = modelSelect ? modelSelect.value : '';
+        let userPromptInput = document.getElementById('llm_refine_user_prompt');
         let bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
+        let refineButton = document.getElementById('llm_refine_button');
+        let status = document.getElementById('llm_refine_status');
 
         if (!modelId) {
             this.showError('Please select a model.');
@@ -246,14 +276,18 @@ class LLMPromptRefiner {
             return;
         }
 
-        // Get custom system prompt if provided
-        let customSystemPrompt = systemPromptInput ? systemPromptInput.value.trim() : '';
+        // Get additional user instructions if provided
+        let customUserPrompt = userPromptInput ? userPromptInput.value.trim() : '';
         let bypassVision = bypassCheckbox ? bypassCheckbox.checked : false;
 
         // Disable refine button and show status
-        document.getElementById('llm_refine_button').disabled = true;
-        document.getElementById('llm_refine_status').textContent = 'Refining prompt...';
-        document.getElementById('llm_refine_status').style.color = '#666';
+        if (refineButton) {
+            refineButton.disabled = true;
+        }
+        if (status) {
+            status.textContent = 'Refining prompt...';
+            status.style.color = '#666';
+        }
         this.showError('');
 
         try {
@@ -264,40 +298,45 @@ class LLMPromptRefiner {
                 bypassVision: bypassVision
             };
 
-            // Add custom system prompt if provided
-            if (customSystemPrompt) {
-                requestBody.systemPrompt = customSystemPrompt;
+            // Add additional user prompt if provided
+            if (customUserPrompt) {
+                requestBody.userPrompt = customUserPrompt;
             }
 
-            let response = await fetch('/API/RefinePromptWithOpenRouter', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+            let data = await new Promise((resolve, reject) => {
+                genericRequest('RefinePromptWithOpenRouter', requestBody, resolve, 0, reject);
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to refine prompt');
-            }
-
-            let data = await response.json();
 
             if (data.error) {
                 this.showError(data.error);
-                document.getElementById('llm_refine_status').textContent = '';
-                document.getElementById('llm_refine_button').disabled = false;
+                if (status) {
+                    status.textContent = '';
+                }
+                if (refineButton) {
+                    refineButton.disabled = false;
+                }
                 return;
             }
 
             this.refinedPrompt = data.refined_prompt;
             this.displayRefinedPrompt();
-            document.getElementById('llm_refine_status').textContent = 'Refinement complete!';
-            document.getElementById('llm_refine_status').style.color = '#0a0';
+            if (status) {
+                status.textContent = 'Refinement complete!';
+                status.style.color = '#0a0';
+            }
+            if (refineButton) {
+                refineButton.disabled = false;
+            }
 
         } catch (error) {
             console.error('Error refining prompt:', error);
             this.showError('Failed to refine prompt. Please try again.');
-            document.getElementById('llm_refine_status').textContent = '';
-            document.getElementById('llm_refine_button').disabled = false;
+            if (status) {
+                status.textContent = '';
+            }
+            if (refineButton) {
+                refineButton.disabled = false;
+            }
         }
     }
 
@@ -327,6 +366,14 @@ class LLMPromptRefiner {
 
         if (applyButton) {
             applyButton.style.display = 'inline-block';
+            applyButton.classList.remove('btn-secondary');
+            applyButton.classList.add('btn-success');
+        }
+
+        let refineButton = document.getElementById('llm_refine_button');
+        if (refineButton) {
+            refineButton.classList.remove('btn-primary');
+            refineButton.classList.add('btn-info');
         }
     }
 
@@ -349,29 +396,69 @@ class LLMPromptRefiner {
      * Generate a simple visual diff between two arrays of words.
      */
     generateSimpleDiff(original, refined) {
-        // Simple visualization: show removed words in red, added words in green
-        let originalSet = new Set(original.map(w => w.toLowerCase()));
-        let refinedSet = new Set(refined.map(w => w.toLowerCase()));
+        let originalCounts = Object.create(null);
+        let refinedCounts = Object.create(null);
+        let originalTokensByKey = Object.create(null);
+        let refinedTokensByKey = Object.create(null);
 
-        let removed = original.filter(w => !refinedSet.has(w.toLowerCase()));
-        let added = refined.filter(w => !originalSet.has(w.toLowerCase()));
+        for (let token of original) {
+            if (!token) continue;
+            let key = token.toLowerCase();
+            originalCounts[key] = (originalCounts[key] || 0) + 1;
+            if (!originalTokensByKey[key]) {
+                originalTokensByKey[key] = [];
+            }
+            originalTokensByKey[key].push(token);
+        }
 
-        let html = '<div style="line-height: 1.8;">';
-        
+        for (let token of refined) {
+            if (!token) continue;
+            let key = token.toLowerCase();
+            refinedCounts[key] = (refinedCounts[key] || 0) + 1;
+            if (!refinedTokensByKey[key]) {
+                refinedTokensByKey[key] = [];
+            }
+            refinedTokensByKey[key].push(token);
+        }
+
+        let removed = [];
+        for (let key of Object.keys(originalCounts)) {
+            let diff = originalCounts[key] - (refinedCounts[key] || 0);
+            if (diff > 0) {
+                removed.push(...originalTokensByKey[key].slice(0, diff));
+            }
+        }
+
+        let added = [];
+        for (let key of Object.keys(refinedCounts)) {
+            let diff = refinedCounts[key] - (originalCounts[key] || 0);
+            if (diff > 0) {
+                added.push(...refinedTokensByKey[key].slice(0, diff));
+            }
+        }
+
+        const removedLabelStyle = 'color: #ff9aa2; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;';
+        const addedLabelStyle = 'color: #7be495; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;';
+        const tokenBaseStyle = 'display: inline-flex; align-items: center; margin: 2px 4px 2px 0; padding: 4px 8px; border-radius: 16px; font-size: 0.85rem; border: 1px solid; backdrop-filter: brightness(1.1);';
+        const removedTokenStyle = `${tokenBaseStyle} background-color: rgba(255, 99, 132, 0.22); border-color: rgba(255, 99, 132, 0.35); color: #ffb2bd;`;
+        const addedTokenStyle = `${tokenBaseStyle} background-color: rgba(76, 175, 80, 0.22); border-color: rgba(76, 175, 80, 0.35); color: #9df3b4;`;
+
+        let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+
         if (removed.length > 0) {
-            html += '<div><span style="color: #c00; font-weight: bold;">Removed:</span> ';
-            html += removed.map(w => `<span style="background-color: #ffdddd; padding: 2px 4px; margin: 2px; border-radius: 3px;">${escapeHtml(w)}</span>`).join(' ');
-            html += '</div>';
+            html += `<div><div style="${removedLabelStyle}">Removed</div><div style="margin-top: 6px; display: flex; flex-wrap: wrap;">`;
+            html += removed.map(w => `<span style="${removedTokenStyle}">${escapeHtml(w)}</span>`).join('');
+            html += '</div></div>';
         }
 
         if (added.length > 0) {
-            html += '<div style="margin-top: 5px;"><span style="color: #0a0; font-weight: bold;">Added:</span> ';
-            html += added.map(w => `<span style="background-color: #ddffdd; padding: 2px 4px; margin: 2px; border-radius: 3px;">${escapeHtml(w)}</span>`).join(' ');
-            html += '</div>';
+            html += `<div><div style="${addedLabelStyle}">Added</div><div style="margin-top: 6px; display: flex; flex-wrap: wrap;">`;
+            html += added.map(w => `<span style="${addedTokenStyle}">${escapeHtml(w)}</span>`).join('');
+            html += '</div></div>';
         }
 
         if (removed.length === 0 && added.length === 0) {
-            html += '<div style="color: #666;">No significant word-level changes detected.</div>';
+            html += '<div style="opacity: 0.7;">No word-level additions or removals detected. The refinement may have only re-ordered tags or adjusted punctuation.</div>';
         }
 
         html += '</div>';

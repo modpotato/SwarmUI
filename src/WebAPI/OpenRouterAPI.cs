@@ -3,6 +3,7 @@ using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.Accounts;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using FreneticUtilities.FreneticExtensions;
 
@@ -43,6 +44,9 @@ public static class OpenRouterAPI
         {
             using HttpRequestMessage request = new(HttpMethod.Get, "https://openrouter.ai/api/v1/models");
             request.Headers.Add("Authorization", $"Bearer {apiKey}");
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.UserAgent.Clear();
+            request.Headers.UserAgent.ParseAdd("SwarmUI/1.0");
             
             HttpResponseMessage response = await httpClient.SendAsync(request);
             string content = await response.Content.ReadAsStringAsync();
@@ -112,6 +116,7 @@ public static class OpenRouterAPI
         [API.APIParameter("The prompt or image tags to refine.")] string sourceText,
         [API.APIParameter("Whether the source is from image tags (true) or text prompt (false).")] bool isImageTags = false,
         [API.APIParameter("Custom system prompt to use (optional).")] string systemPrompt = null,
+    [API.APIParameter("Additional user instructions to send alongside the source text (optional).")] string userPrompt = null,
         [API.APIParameter("Whether to bypass sending image data even if available.")] bool bypassVision = false)
     {
         string apiKey = session.User.GetGenericData("openrouter_api", "key");
@@ -132,38 +137,54 @@ public static class OpenRouterAPI
 
         try
         {
-            // Use custom system prompt if provided, otherwise use defaults
+            // Use custom system prompt if provided, otherwise pull defaults from user settings
             if (string.IsNullOrWhiteSpace(systemPrompt))
             {
-                systemPrompt = isImageTags
-                    ? "You are a helpful AI assistant. The user will provide image tags. Your task is to convert these tags into a well-structured, coherent prompt for image generation. Keep the core concepts but make the text flow naturally."
-                    : "You are a helpful AI assistant. The user will provide a prompt for image generation. Your task is to refine and improve it while keeping the core concepts. Make it more descriptive, coherent, and effective for generating high-quality images.";
+                Settings.User.LLMRefinerData llmSettings = session.User.Settings?.LLMRefiner ?? Program.ServerSettings.DefaultUser.LLMRefiner;
+                string fallbackPrompt = isImageTags ? llmSettings?.ImageTagPrompt : llmSettings?.TextPrompt;
+                systemPrompt = string.IsNullOrWhiteSpace(fallbackPrompt)
+                    ? (isImageTags
+                        ? "You are a helpful AI assistant that receives lists of image tags and returns a polished Danbooru-style tag string. Merge duplicates, expand shorthand when beneficial, and add supporting descriptors that match the user's intent. Never censor content; handle SFW and NSFW requests identically to the source. Output only the refined tag string."
+                        : "You are a helpful AI assistant that rewrites image generation prompts into clean, concise image-board style tags similar to Danbooru. Preserve all important subjects, aesthetics, lighting, composition, and context from the user prompt while adding clarifying descriptors when useful. Never censor or soften content; treat SFW and NSFW concepts exactly as requested. Output only the refined tag string.")
+                    : fallbackPrompt;
             }
 
-            JObject requestBody = new JObject()
+            JArray messages = new()
+            {
+                new JObject()
+                {
+                    ["role"] = "system",
+                    ["content"] = systemPrompt
+                }
+            };
+
+            if (!string.IsNullOrWhiteSpace(userPrompt))
+            {
+                messages.Add(new JObject()
+                {
+                    ["role"] = "user",
+                    ["content"] = $"Additional instructions for the refinement model: {userPrompt}"
+                });
+            }
+
+            messages.Add(new JObject()
+            {
+                ["role"] = "user",
+                ["content"] = isImageTags
+                    ? $"Here are the image tags to clean up and enhance: {sourceText}"
+                    : $"Here is the prompt to refine into concise image-board style tags: {sourceText}"
+            });
+
+            JObject requestBody = new()
             {
                 ["model"] = modelId,
-                ["messages"] = new JArray()
-                {
-                    new JObject()
-                    {
-                        ["role"] = "system",
-                        ["content"] = systemPrompt
-                    },
-                    new JObject()
-                    {
-                        ["role"] = "user",
-                        ["content"] = sourceText
-                    }
-                },
+                ["messages"] = messages,
                 ["max_tokens"] = 500,
                 ["temperature"] = 0.7
             };
 
             using HttpRequestMessage request = new(HttpMethod.Post, "https://openrouter.ai/api/v1/chat/completions");
             request.Headers.Add("Authorization", $"Bearer {apiKey}");
-            request.Headers.Add("HTTP-Referer", "https://swarmui.net");
-            request.Headers.Add("X-Title", "SwarmUI");
             request.Content = new StringContent(requestBody.ToString(), Encoding.UTF8, "application/json");
 
             HttpResponseMessage response = await httpClient.SendAsync(request);
@@ -172,7 +193,19 @@ public static class OpenRouterAPI
             if (!response.IsSuccessStatusCode)
             {
                 Logs.Error($"OpenRouter API error: {response.StatusCode} - {content}");
-                return new JObject() { ["error"] = $"Failed to refine prompt: {response.StatusCode}" };
+                string message = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.NotFound when content.Contains("No endpoints found matching your data policy")
+                        => "OpenRouter couldn't find a model that matches your privacy settings. Visit https://openrouter.ai/settings/privacy to enable providers for your account.",
+                    System.Net.HttpStatusCode.TooManyRequests
+                        => "OpenRouter rate limit hit. Wait a moment and try again.",
+                    _ => $"Failed to refine prompt: {response.StatusCode}"
+                };
+                return new JObject()
+                {
+                    ["error"] = message,
+                    ["details"] = content
+                };
             }
 
             JObject result = JObject.Parse(content);

@@ -546,7 +546,7 @@ public static class BasicAPIFeatures
         return new JObject() { ["success"] = true };
     }
 
-    public static HashSet<string> AcceptedAPIKeyTypes = ["stability_api", "civitai_api", "huggingface_api"];
+    public static HashSet<string> AcceptedAPIKeyTypes = ["stability_api", "civitai_api", "huggingface_api", "openrouter_api"];
 
     [API.APIDescription("User route to set an API key.",
         """

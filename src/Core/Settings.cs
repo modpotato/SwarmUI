@@ -388,6 +388,18 @@ public class Settings : AutoConfiguration
         [ConfigComment("Settings related to the parsing of generation parameters.")]
         public ParamParsingData ParamParsing = new();
 
+        public class LLMRefinerData : AutoConfiguration
+        {
+            [ConfigComment("System prompt used when refining freeform prompts with the LLM refiner. This text is sent as the system message for OpenRouter requests.")]
+            public string TextPrompt = @"You are a helpful AI assistant that rewrites image generation prompts into clean, concise image-board style tag strings similar to Danbooru. Preserve every meaningful descriptor, including resolution or quality terms like ""4k"" and ""8k"", stylistic names such as ""arcane"", and any character or franchise references. Only remove words when they are exact duplicates or clearly superseded by a more specific term the user already supplied. Never censor or soften content; treat SFW and NSFW concepts exactly as requested. Output only the refined tag string.";
+
+            [ConfigComment("System prompt used when refining metadata tag lists with the LLM refiner. This text is sent as the system message for OpenRouter requests when converting image tags.")]
+            public string ImageTagPrompt = @"You are a helpful AI assistant that receives lists of image tags and returns a polished Danbooru-style tag string. Keep important descriptors, including resolution or quality markers like ""4k"" and ""8k"", series or style names such as ""arcane"", and all character or franchise references. Only drop entries when they are redundant duplicates or explicitly superseded by a more precise tag already present. Never censor content; handle SFW and NSFW requests identically to the source. Output only the refined tag string.";
+        }
+
+        [ConfigComment("Settings for the LLM-based prompt refiner feature.")]
+        public LLMRefinerData LLMRefiner = new();
+
         [ConfigComment("Whether your image output files save to server data drive or not.\nDisabling this can make some systems misbehave, and makes the Image History do nothing.")]
         public bool SaveFiles = true;
 
