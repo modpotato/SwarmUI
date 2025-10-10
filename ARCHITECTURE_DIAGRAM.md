@@ -1,145 +1,81 @@
-# LLM Prompt Refinement - Architecture Diagram
+# LLM Prompt Refinement - Architecture Diagram (Mermaid)
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         SwarmUI Frontend                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌──────────────────┐         ┌─────────────────────────────┐      │
-│  │  Generate Tab    │         │   Prompt Tools Menu         │      │
-│  │                  │         │                             │      │
-│  │  [Prompt Box]    │────────▶│  • Auto Segment            │      │
-│  │  [+ Button]      │         │  • Regional Prompt         │      │
-│  │                  │         │  • Upload Image            │      │
-│  └──────────────────┘         │  • Refine with LLM ◀───┐   │      │
-│                                │  • Other...            │   │      │
-│                                └────────────────────────┼───┘      │
-│                                                         │           │
-│                                                         ▼           │
-│  ┌────────────────────────────────────────────────────────────┐   │
-│  │              LLM Refinement Modal                           │   │
-│  │  ┌──────────────────────────────────────────────────────┐ │   │
-│  │  │  Source: [Image Tags / Prompt Text]  (Auto-detected) │ │   │
-│  │  │  Original: [Text area with original content]         │ │   │
-│  │  │  Model: [Dropdown with LLM models]                   │ │   │
-│  │  │                                                       │ │   │
-│  │  │  [Refine Button] ────┐                               │ │   │
-│  │  │                      │                               │ │   │
-│  │  │  After refinement:   ▼                               │ │   │
-│  │  │  Refined: [Improved prompt text]                     │ │   │
-│  │  │  Changes: [Visual diff: removed | added]             │ │   │
-│  │  │                                                       │ │   │
-│  │  │  [Apply Button] [Close Button]                       │ │   │
-│  │  └──────────────────────────────────────────────────────┘ │   │
-│  └────────────────────────────────────────────────────────────┘   │
-│                                │                                    │
-│                                │ llmrefiner.js                      │
-│                                │                                    │
-└────────────────────────────────┼────────────────────────────────────┘
-                                 │
-                                 │ HTTP POST
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                         SwarmUI Backend (C#)                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  ┌────────────────────────────────────────────────────────────┐    │
-│  │              OpenRouterAPI.cs                               │    │
-│  │                                                             │    │
-│  │  GetOpenRouterModels()                                      │    │
-│  │    ├─ Fetch models from OpenRouter                         │    │
-│  │    └─ Return formatted model list                          │    │
-│  │                                                             │    │
-│  │  RefinePromptWithOpenRouter()                              │    │
-│  │    ├─ Validate API key                                     │    │
-│  │    ├─ Build request with system prompt                     │    │
-│  │    ├─ Send to OpenRouter API                               │    │
-│  │    └─ Return refined prompt                                │    │
-│  └────────────────────────────────────────────────────────────┘    │
-│                                │                                     │
-│  ┌────────────────────────────┼──────────────────────────────┐     │
-│  │  UserUpstreamApiKeys.cs    │                              │     │
-│  │    (API Key Storage)       │                              │     │
-│  │    • openrouter_api ───────┘                              │     │
-│  │    • civitai_api                                          │     │
-│  │    • stability_api                                        │     │
-│  │    • huggingface_api                                      │     │
-│  └───────────────────────────────────────────────────────────┘     │
-│                                                                       │
-└───────────────────────────────┬───────────────────────────────────────┘
-                                │
-                                │ HTTPS Request
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                          OpenRouter API                              │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  GET /api/v1/models                                                  │
-│    └─ Returns: List of available LLM models                         │
-│                                                                       │
-│  POST /api/v1/chat/completions                                      │
-│    └─ Forwards request to selected LLM provider:                    │
-│                                                                       │
-│        ┌────────────┬────────────┬────────────┬────────────┐        │
-│        │  Claude    │   GPT-4    │  Gemini    │   Llama    │        │
-│        │ (Anthropic)│  (OpenAI)  │  (Google)  │   (Meta)   │        │
-│        └────────────┴────────────┴────────────┴────────────┘        │
-│                                                                       │
-└───────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+   %% Nodes
+   U[User]
 
+   subgraph FE[SwarmUI Frontend]
+      GT[Generate Tab<br/>[Prompt Box] [ + Button ]]
+      PTM[Prompt Tools Menu<br/>• Auto Segment<br/>• Regional Prompt<br/>• Upload Image<br/>• Refine with LLM]
+      LMM[LLM Refinement Modal<br/>Source: Image Tags / Prompt Text (auto)<br/>Original: Text Area<br/>Model: Dropdown<br/>[Refine] → Refined + Diff<br/>[Apply] [Close]]
+      JS[llmrefiner.js]
+      GT --> PTM
+      PTM -->|Refine with LLM| LMM
+      LMM <-->|Open/Apply/Close| JS
+   end
 
-Data Flow:
-──────────
+   subgraph BE[SwarmUI Backend (C#)]
+      ORAPI[OpenRouterAPI.cs<br/>GetOpenRouterModels()<br/>RefinePromptWithOpenRouter()]
+      KEYS[UserUpstreamApiKeys.cs<br/>(openrouter_api, civitai_api,<br/>stability_api, huggingface_api)]
+      ORAPI <--> KEYS
+   end
 
-1. User Action:
-   User clicks "+" button → "Refine with LLM"
+   subgraph OR[OpenRouter API]
+      MODELS[GET /api/v1/models<br/>Returns model list]
+      CHAT[POST /api/v1/chat/completions<br/>Routes to selected provider]
+      subgraph LLMs[LLM Providers]
+         Claude[Claude (Anthropic)]
+         GPT4[GPT-4 (OpenAI)]
+         Gemini[Gemini (Google)]
+         Llama[Llama (Meta)]
+      end
+      CHAT --> Claude
+      CHAT --> GPT4
+      CHAT --> Gemini
+      CHAT --> Llama
+   end
 
-2. Source Detection (Frontend):
-   llmrefiner.js checks:
-   - Is image selected? → Use image metadata tags
-   - No image? → Use current prompt text
+   %% Flows
+   U -->|Clicks "+" → "Refine with LLM"| GT
+   JS -->|HTTP POST| ORAPI
+   ORAPI -->|HTTPS GET models| MODELS
+   MODELS -->|Model list| ORAPI
+   ORAPI -->|Models| JS
+   ORAPI -->|HTTPS POST chat/completions| CHAT
+   CHAT -->|LLM response| ORAPI
+   ORAPI -->|Refined prompt| JS
+   JS -->|Update UI: Original / Refined / Diff| LMM
 
-3. Model Loading (if needed):
-   Frontend → Backend → OpenRouter → Model List → Display in UI
+   %% Data source detection (frontend)
+   DS[(Image selected?)] -. checks .- JS
+   DS -. Yes → Use image tags .- LMM
+   DS -. No → Use prompt text .- LMM
 
-4. Refinement Process:
-   User selects model & clicks "Refine"
-   Frontend → Backend (with: modelId, sourceText, isImageTags)
-   Backend → OpenRouter → Selected LLM → Refined prompt
-   Backend ← OpenRouter ← Response
-   Frontend ← Backend ← Refined prompt
-   Display: Original, Refined, and Diff
+   %% Apply back to prompt box
+   LMM -->|Apply refined prompt| GT
 
-5. Application:
-   User clicks "Apply" → Refined prompt replaces original in prompt box
+   %% Security & Privacy
+   subgraph SEC[Security & Privacy]
+      S1[API Key: Encrypted at rest in user profile]
+      S2[HTTPS: All API comms encrypted in transit]
+      S3[No Logging: Prompts not logged by SwarmUI]
+      S4[Third‑party: Prompts sent to OpenRouter/LLM providers]
+      S5[User Control: Explicit API key config and manual trigger]
+   end
+   KEYS --- S1
+   ORAPI --- S2
+   FE --- S3
+   FE --- S5
+   OR --- S4
 
-
-Security & Privacy:
-──────────────────
-
-• API Key: Stored securely in user profile (encrypted at rest)
-• HTTPS: All API communication encrypted in transit
-• No Logging: Prompts not logged by SwarmUI
-• Third-party: Prompts sent to OpenRouter/LLM providers (documented)
-• User Control: Users must explicitly configure API key and trigger refinement
-
-
-Error Handling:
-───────────────
-
-Level 1 (Frontend):
-  • Empty prompt detection
-  • No model selected warning
-  • Network error handling
-
-Level 2 (Backend):
-  • API key validation
-  • Request validation
-  • OpenRouter API error handling
-  • Timeout handling
-
-Level 3 (UI Feedback):
-  • Clear error messages
-  • Status updates during processing
-  • Graceful degradation
+   %% Error Handling
+   subgraph ERR[Error Handling]
+      E1[Frontend<br/>• Empty prompt detection<br/>• No model selected warning<br/>• Network error handling]
+      E2[Backend<br/>• API key validation<br/>• Request validation<br/>• OpenRouter API error handling<br/>• Timeout handling]
+      E3[UI Feedback<br/>• Clear error messages<br/>• Status updates during processing<br/>• Graceful degradation]
+   end
+   FE --- E1
+   BE --- E2
+   FE --- E3
 ```
