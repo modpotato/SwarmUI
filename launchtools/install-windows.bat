@@ -28,7 +28,7 @@ IF %ERRORLEVEL% NEQ 0 (
     winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements
 )
 
-git clone https://github.com/mcmonkeyprojects/SwarmUI
+git clone https://github.com/modpotato/SwarmUI
 cd SwarmUI
 
 cmd /c .\launch-windows.bat --launch_mode webinstall

@@ -15,7 +15,7 @@ if [ -f "SwarmUI.sln" ]; then
 fi
 
 # Download swarm
-git clone https://github.com/mcmonkeyprojects/SwarmUI
+git clone https://github.com/modpotato/SwarmUI
 cd SwarmUI
 
 # install dotnet

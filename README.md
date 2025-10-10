@@ -52,7 +52,7 @@ Note it may take several minutes to start up the first time. Check the container
 
 Note: if you're on Windows 10, you may need to manually install [git](https://git-scm.com/download/win) and [DotNET 8 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) first. (Windows 11 this is automated).
 
-- Download [The Install-Windows.bat file](https://github.com/mcmonkeyprojects/SwarmUI/releases/download/0.9.5-Beta/install-windows.bat), store it somewhere you want to install at (not `Program Files`), and run it.
+- Download [The Install-Windows.bat file](https://raw.githubusercontent.com/modpotato/SwarmUI/master/launchtools/install-windows.bat), store it somewhere you want to install at (not `Program Files`), and run it.
     - It should open a command prompt and install itself.
     - If it closes without going further, try running it again, it sometimes needs to run twice. (TODO: Fix that)
     - It will place an icon on your desktop that you can use to re-launch the server at any time.
@@ -66,7 +66,7 @@ Note: if you're on Windows 10, you may need to manually install [git](https://gi
 
 - Install git from https://git-scm.com/download/win
 - Install DotNET 8 SDK from https://dotnet.microsoft.com/en-us/download/dotnet/8.0 (Make sure to get the SDK x64 for Windows)
-- open a terminal to the folder you want swarm in and run `git clone https://github.com/mcmonkeyprojects/SwarmUI`
+- open a terminal to the folder you want swarm in and run `git clone https://github.com/modpotato/SwarmUI`
 - open the folder and run `launch-windows.bat`
 
 # Installing on Linux
@@ -81,9 +81,9 @@ Note: if you're on Windows 10, you may need to manually install [git](https://gi
 
 ### Linux Easy Install
 
-- Download [the install-linux.sh file](https://github.com/mcmonkeyprojects/SwarmUI/releases/download/0.6.5-Beta/install-linux.sh), store it somewhere you want to install at, and run it
-    - If you like terminals, you can open a terminal to the folder and run the following commands: (Yes this link is still current):
-        - `wget https://github.com/mcmonkeyprojects/SwarmUI/releases/download/0.6.5-Beta/install-linux.sh -O install-linux.sh`
+- Download [the install-linux.sh file](https://raw.githubusercontent.com/modpotato/SwarmUI/master/launchtools/install-linux.sh), store it somewhere you want to install at, and run it
+    - If you like terminals, you can open a terminal to the folder and run the following commands:
+        - `wget https://raw.githubusercontent.com/modpotato/SwarmUI/master/launchtools/install-linux.sh -O install-linux.sh`
         - `chmod +x install-linux.sh`
 - Run the `./install-linux.sh` script, it will install everything for you and eventually open the webpage in your browser.
 - Follow the install instructions on-page.
@@ -93,7 +93,7 @@ Note: if you're on Windows 10, you may need to manually install [git](https://gi
 - Install DotNET 8 using the instructions at https://dotnet.microsoft.com/en-us/download/dotnet/8.0 (you need `dotnet-sdk-8.0`, as that includes all relevant sub-packages)
 - Open a shell terminal and `cd` to a directory you want to install into
 - Run shell commands:
-    - `git clone https://github.com/mcmonkeyprojects/SwarmUI`
+    - `git clone https://github.com/modpotato/SwarmUI`
     - cd `SwarmUI`
     - `./launch-linux.sh`
     - or if running on a headless server, `./launch-linux.sh --launch_mode none --host 0.0.0.0` and/or swap host for [cloudflared](/docs/Advanced%20Usage.md)
