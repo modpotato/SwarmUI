@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticDataSyntax;
+using FreneticUtilities.FreneticDataSyntax;
 using SwarmUI.Backends;
 using SwarmUI.Utils;
 using System.Reflection;

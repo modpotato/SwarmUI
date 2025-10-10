@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.Accounts;

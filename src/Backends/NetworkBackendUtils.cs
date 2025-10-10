@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
 using Hardware.Info;
 using Newtonsoft.Json;

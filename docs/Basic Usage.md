@@ -52,7 +52,7 @@ If you have pre-existing Stable Diffusion files, you'll want to configure settin
 
 - If all went well, you should have a nice picture of a cat in the center of your screen!
 
-If it didn't go well, there's usually an error message telling you what went wrong, if not check `Server` -> `Logs` tab. If you can't figure it out, open an [issue here](https://github.com/mcmonkeyprojects/SwarmUI/issues) or ask on [discord](https://discord.gg/q2y38cqjNw).
+If it didn't go well, there's usually an error message telling you what went wrong, if not check `Server` -> `Logs` tab. If you can't figure it out, open an [issue here](https://github.com/modpotato/SwarmUI/issues) or ask on [discord](https://discord.gg/q2y38cqjNw).
 
 ## Using A Refiner / Upscaling Images
 
@@ -120,7 +120,7 @@ What's the fun in testing changes one by one, when you can unleash your machine 
 
 - Want to use [IP-Adapter](/docs/Features/ImagePrompting.md) image gen with an [Image-To-Video](/docs/Features/Video.md)?
     - No problem! Just... do both! Swarm is so easy it's crazy sometimes - you can just enable multiple different features at the same time, and generally trust Swarm will automatically figure out how to combine them appropriately.
-    - If you ever find a case that doesn't work, you can just [file an issue](https://github.com/mcmonkeyprojects/SwarmUI/issues) to get that fixed.
+    - If you ever find a case that doesn't work, you can just [file an issue](https://github.com/modpotato/SwarmUI/issues) to get that fixed.
 
 ## Take It Further: Advanced Usage
 

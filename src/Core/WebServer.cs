@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticExtensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;

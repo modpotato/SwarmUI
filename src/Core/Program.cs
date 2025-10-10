@@ -387,7 +387,7 @@ public class Program
         WebhookManager.SendWebhook("Startup", ServerSettings.WebHooks.ServerStartWebhook, ServerSettings.WebHooks.ServerShutdownWebhook);
         if (Environment.CurrentDirectory.Contains("StableSwarmUI"))
         {
-            Logs.Warning("You are running SwarmUI in a folder labeled 'StableSwarmUI', indicating you may have ran from an extremely outdated legacy version of SwarmUI (Swarm split from Stability in June 2024). You should probably reinstall fresh from https://github.com/mcmonkeyprojects/SwarmUI");
+            Logs.Warning("You are running SwarmUI in a folder labeled 'StableSwarmUI', indicating you may have ran from an extremely outdated legacy version of SwarmUI (Swarm split from Stability in June 2024). You should probably reinstall fresh from https://github.com/modpotato/SwarmUI");
         }
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("HTTP_PROXY")))
         {
@@ -834,14 +834,14 @@ public class Program
               - `host`, `port`, and `launch_mode` may be useful in developmental usages where you need to quickly or automatically change network paths.
               - `require_control_within` is used for AutoScalingBackend especially.
 
-            Additional documentation about the CLI args is available online: <https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/Command%20Line%20Arguments.md> or in the `docs/` folder of this repo.
+            Additional documentation about the CLI args is available online: <https://github.com/modpotato/SwarmUI/blob/master/docs/Command%20Line%20Arguments.md> or in the `docs/` folder of this repo.
 
             Find more information about SwarmUI in the GitHub readme and docs folder:
               - Main website: <https://swarmui.net/>
-              - Project Github: <https://github.com/mcmonkeyprojects/SwarmUI>
-              - Documentation: <https://github.com/mcmonkeyprojects/SwarmUI/tree/master/docs>
-              - Feature Announcements: <https://github.com/mcmonkeyprojects/SwarmUI/discussions/1>
-              - License (MIT): <https://github.com/mcmonkeyprojects/SwarmUI/blob/master/LICENSE.txt>
+              - Project Github: <https://github.com/modpotato/SwarmUI>
+              - Documentation: <https://github.com/modpotato/SwarmUI/tree/master/docs>
+              - Feature Announcements: <https://github.com/modpotato/SwarmUI/discussions/1>
+              - License (MIT): <https://github.com/modpotato/SwarmUI/blob/master/LICENSE.txt>
 
             Join the Discord <https://discord.gg/q2y38cqjNw> to discuss the project, get support, see announcements, etc.
             """);

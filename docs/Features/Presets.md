@@ -6,7 +6,7 @@
 
 These are the presets used on DreamStudio.
 
-- Download this file: [SDXL Official Presets.json](https://github.com/mcmonkeyprojects/SwarmUI/releases/download/0.6.5-Beta/SDXL.Official.Presets.json) and save it somewhere (anywhere, desktop is fine)
+- Download this file: [SDXL Official Presets.json](https://github.com/modpotato/SwarmUI/releases/download/0.6.5-Beta/SDXL.Official.Presets.json) and save it somewhere (anywhere, desktop is fine)
 - Open SwarmUI and open the `Presets` tab at the bottom
 - Click on the `Import Presets` button
 - drag the presets file in to the box that appears

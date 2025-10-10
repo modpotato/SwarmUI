@@ -1,4 +1,4 @@
-﻿using SwarmUI.Utils;
+using SwarmUI.Utils;
 using SwarmUI.Core;
 using System.Collections.Concurrent;
 using LiteDB;

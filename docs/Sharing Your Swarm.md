@@ -6,7 +6,7 @@ There's two "groups of people" you might want to share to:
 - **1: Friends and Family.** These are people you trust, who you want to be able to play with your fun ai toys too.
 - **2: The Public.** These are anyone else - maybe it's an open server, maybe it's for a Discord community, maybe it's friends that you just don't trust as much.
 
-Currently, SwarmUI is only validated to be safely usable by **Friends and Family**. Giving access to **The Public** is not recommended unless you do your own security validations first. See also the [Public Call For Security Researchers announced here](https://github.com/mcmonkeyprojects/SwarmUI/discussions/679).
+Currently, SwarmUI is only validated to be safely usable by **Friends and Family**. Giving access to **The Public** is not recommended unless you do your own security validations first. See also the [Public Call For Security Researchers announced here](https://github.com/modpotato/SwarmUI/discussions/679).
 
 ## General Notes
 

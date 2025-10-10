@@ -9,8 +9,8 @@ A Modular AI Image Generation Web-User-Interface, with an emphasis on making pow
 ![ui-screenshot](.github/images/swarmui.jpg)
 
 - **Discord Community**: Join the [Discord](https://discord.gg/q2y38cqjNw) to discuss the project, get support, see announcements, etc.
-- **Announcements**: Follow the [Feature Announcements Thread](https://github.com/mcmonkeyprojects/SwarmUI/discussions/1) for updates on new features.
-- **General documentation**: [/docs folder](https://github.com/mcmonkeyprojects/SwarmUI/blob/master/docs/README.md)
+- **Announcements**: Follow the [Feature Announcements Thread](https://github.com/modpotato/SwarmUI/discussions/1) for updates on new features.
+- **General documentation**: [/docs folder](https://github.com/modpotato/SwarmUI/blob/master/docs/README.md)
 - **Website**: [SwarmUI.net](https://swarmui.net/)
 
 ----
@@ -34,7 +34,7 @@ Key feature targets not yet implemented:
 
 **WARNING**: Google Colab does not necessarily allow remote WebUIs, particularly for free accounts, use at your own risk.
 
-Colab link if you want to try Swarm: https://colab.research.google.com/github/mcmonkeyprojects/SwarmUI/blob/master/colab/colab-notebook.ipynb
+Colab link if you want to try Swarm: https://colab.research.google.com/github/modpotato/SwarmUI/blob/master/colab/colab-notebook.ipynb
 
 # Run it on a Cloud GPU Provider
 
@@ -118,7 +118,7 @@ Note: if you're on Windows 10, you may need to manually install [git](https://gi
 - If you don't have Python, install it: `brew install python@3.11` and `brew install virtualenv`
     - Python 3.11, 3.10, 3.12 are all fine. 3.13 is not, do not use 3.13.
 - Change the directory (`cd`) to the folder where you want to install SwarmUI.
-- Clone the SwarmUI GitHub repository: `git clone https://github.com/mcmonkeyprojects/SwarmUI`.
+- Clone the SwarmUI GitHub repository: `git clone https://github.com/modpotato/SwarmUI`.
 - `cd SwarmUI` and run the installation script: `./launch-macos.sh`.
 - Wait for the web browser to open, and follow the install instructions on-page.
 

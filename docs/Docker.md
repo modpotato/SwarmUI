@@ -25,7 +25,7 @@ This document explains why and how to use SwarmUI in a Docker container. This is
 
 \*(Docker is not a guarantee, it just makes it a lot harder for malicious activity to escape. A targeted attack for example might escape through internal network access.)
 
-**Does this mean Swarm is unsafe?** Well, no. Swarm is safe. ... Buuuut, Swarm does not stand up all by itself. Swarm depends on a ComfyUI backend. ComfyUI depends on python3, and a variety of python packages. You might install custom nodes from any number of third party developers. Those nodes, in turn, depend on a variety of other python packages. The risk here is referred to as a "supply chain attack": The software you're trying to use, Swarm, is safe, but a dependency of a dependency of a dependency might be maintained by [some random person from Nebraska who has been thanklessly maintaining it since 2003](https://xkcd.com/2347/), and that guy might have his account taken over, and malware slipped into his project. This is rare, but it has happened, and has even happened to projects depended on by Comfy & Swarm users ([see for example Ultralytics breach notes here](https://github.com/mcmonkeyprojects/SwarmUI/releases/tag/0.9.4.0-Beta) - this attack thankfully ended up damaging zero of our users, and was detected & addressed by Swarm & Comfy developers within hours, but it hurt non-Swarm-users, and the next attack might not leave us so lucky).
+**Does this mean Swarm is unsafe?** Well, no. Swarm is safe. ... Buuuut, Swarm does not stand up all by itself. Swarm depends on a ComfyUI backend. ComfyUI depends on python3, and a variety of python packages. You might install custom nodes from any number of third party developers. Those nodes, in turn, depend on a variety of other python packages. The risk here is referred to as a "supply chain attack": The software you're trying to use, Swarm, is safe, but a dependency of a dependency of a dependency might be maintained by [some random person from Nebraska who has been thanklessly maintaining it since 2003](https://xkcd.com/2347/), and that guy might have his account taken over, and malware slipped into his project. This is rare, but it has happened, and has even happened to projects depended on by Comfy & Swarm users ([see for example Ultralytics breach notes here](https://github.com/modpotato/SwarmUI/releases/tag/0.9.4.0-Beta) - this attack thankfully ended up damaging zero of our users, and was detected & addressed by Swarm & Comfy developers within hours, but it hurt non-Swarm-users, and the next attack might not leave us so lucky).
 
 **So doing this Docker thingy makes it safe?** Well not entirely, but mostly yeah. Docker removes the majority of available attack surface, but nothing is ever a guarantee. Even with a Docker setup, always only install extensions or custom nodes from respected well known developers to minimize risk. This is also not a substitute for practicing good security in general (backup your important files externally, don't reuse passwords between sites, always use TFA, etc. -- when all is done well, even a successful hack targeting you can't do you too much harm). See also Docker's security documentation: https://docs.docker.com/engine/security/
 
@@ -81,7 +81,7 @@ In all cases you don't need to be an expert, but will need a bit of familiarity 
         - If you must, you'll need to maintain modified copies of the docker scripts that remove the `--user` inputs (ie rootless docker currently requires you run as root inside the container. This is obviously not good, thus the advice to not use rootless for now. See https://github.com/mamba-org/micromamba-docker/issues/407#issuecomment-2088523507 for info.)
 - Install and enable NVIDIA Container toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 - Install `git`
-- Download Swarm via git: `git clone https://github.com/mcmonkeyprojects/SwarmUI`
+- Download Swarm via git: `git clone https://github.com/modpotato/SwarmUI`
 - cd `SwarmUI`
 - Run `./launchtools/launch-standard-docker.sh` or `./launchtools/launch-open-docker.sh`. Do not give it any CLI args.
 - Open a browser to http://localhost:7801
@@ -92,7 +92,7 @@ In all cases you don't need to be an expert, but will need a bit of familiarity 
     - Be warned this has a lot of prerequisites, including BIOS settings and Windows WSL2 activation. Be prepared for a long and annoying process if you've never done this before. Sorry.
     - It's also pretty buggy from my own testing. (Maybe a Docker expert can help improve this?)
 - Install git from https://git-scm.com/download/win
-- open a terminal to the folder you want swarm in and run `git clone https://github.com/mcmonkeyprojects/SwarmUI`
+- open a terminal to the folder you want swarm in and run `git clone https://github.com/modpotato/SwarmUI`
 - Open the `launchtools` folder and doubleclick either `windows-standard-docker.bat` or `windows-open-docker.bat`
 - Open a browser to http://localhost:7801
 
@@ -102,7 +102,7 @@ Mac information is currently untested, but presumed to work fairly similar to Li
 
 - Install Docker Desktop for Mac: https://docs.docker.com/desktop/setup/install/mac-install/
 - Install `git`
-- Download Swarm via git: `git clone https://github.com/mcmonkeyprojects/SwarmUI`
+- Download Swarm via git: `git clone https://github.com/modpotato/SwarmUI`
 - cd `SwarmUI`
 - Run `./launchtools/launch-standard-docker.sh` or `./launchtools/launch-open-docker.sh`. Do not give it any CLI args.
 - Open a browser to http://localhost:7801

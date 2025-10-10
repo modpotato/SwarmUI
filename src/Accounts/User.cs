@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticToolkit;
+using FreneticUtilities.FreneticToolkit;
 using FreneticUtilities.FreneticDataSyntax;
 using LiteDB;
 using SwarmUI.Core;

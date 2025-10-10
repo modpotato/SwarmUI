@@ -1,4 +1,4 @@
-﻿namespace SwarmUI.Utils;
+namespace SwarmUI.Utils;
 
 using SixLabors.ImageSharp;
 using System.IO;

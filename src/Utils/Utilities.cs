@@ -1,4 +1,4 @@
-﻿using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
@@ -139,7 +139,7 @@ public static class Utilities
     public static readonly string Version = Assembly.GetEntryAssembly()?.GetName().Version.ToString();
 
     /// <summary>URL to the github repo.</summary>
-    public const string RepoRoot = "https://github.com/mcmonkeyprojects/SwarmUI";
+    public const string RepoRoot = "https://github.com/modpotato/SwarmUI";
 
     /// <summary>URL to where the documentation files start.</summary>
     public const string RepoDocsRoot = $"{RepoRoot}/blob/master/docs/";

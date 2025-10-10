@@ -38,7 +38,7 @@ Video model(s) most worth using, as of April 2025:
 
 ## Basic Usage
 
-There's a full step by step guide for video model usage here: <https://github.com/mcmonkeyprojects/SwarmUI/discussions/716>
+There's a full step by step guide for video model usage here: <https://github.com/modpotato/SwarmUI/discussions/716>
 
 ### Text-To-Video Models
 
