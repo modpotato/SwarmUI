@@ -23,7 +23,7 @@ To use more GPUs in your machine, simply add more self-start backends (interface
         - Make sure you can open it in a web browser on the main machine before continuing (to separate network diagnostic issues from SwarmUI-specific issues)
     - In the SwarmUI interface (`Server` -> `Backends`), add an "API By URL" backend, such as `Swarm-API-Backend` or `ComfyUI API By URL`
         - Set the address to the same LAN address you used in your web browser
-        - Note that using the `Swarm-API-Backend` is highly recommended, if you use `ComfyUI API By URL` please make sure you know what you're doing and properly load in the [Swarm custom node set](https://github.com/mcmonkeyprojects/SwarmUI/tree/master/src/BuiltinExtensions/ComfyUIBackend/ExtraNodes) and all.
+        - Note that using the `Swarm-API-Backend` is highly recommended, if you use `ComfyUI API By URL` please make sure you know what you're doing and properly load in the [Swarm custom node set](https://github.com/modpotato/SwarmUI/tree/master/src/BuiltinExtensions/ComfyUIBackend/ExtraNodes) and all.
     - Generate!
 - If you are using Google Colab, Runpod, or other rented servers:
     - Same as in-home, but use the public address of the server if possible, or the share address if not (eg a trycloudflare or ngrok URL)
@@ -61,7 +61,7 @@ Before we begin, let's plan how we're going to set things up.
 
 #### Step 2: Install On The Main Machine
 
-- Naturally, you're going to have to install SwarmUI on your main machine. The information on how to do this is in [the README, here](https://github.com/mcmonkeyprojects/SwarmUI#installing-on-windows).
+- Naturally, you're going to have to install SwarmUI on your main machine. The information on how to do this is in [the README, here](https://github.com/modpotato/SwarmUI#installing-on-windows).
     - Just follow the instructions, you can install this however is appropriate for your usage, for the 'main machine' there is nothing special/different yet. We will make changes later after it's installed.
 - I recommend at this stage you also configure any models/etc. you desire, and test Swarm on the machine - generate locally at will.
     - If you have multiple GPUs in the machine, set them up per [the instructions above](#more-gpus-in-your-machine).
@@ -71,7 +71,7 @@ Before we begin, let's plan how we're going to set things up.
 #### Step 3: Install on Other Machines
 
 - Repeat the following steps on every "Other Machine", that is EVERY MACHINE you're using EXCEPT the "Main Machine":
-    - Install SwarmUI on the Other Machine, again per [the README, here](https://github.com/mcmonkeyprojects/SwarmUI#installing-on-windows), with one specific change:
+    - Install SwarmUI on the Other Machine, again per [the README, here](https://github.com/modpotato/SwarmUI#installing-on-windows), with one specific change:
         - During the Installer UI that appears on first boot, you will get an option asking `Who is this SwarmUI installation going to be used by?` - make sure to Select the `Just Yourself, with LAN access` option. This is essential to allow the Main Machine to connect remotely in to your Other Machine.
         - ![img](/docs/images/lan-access.png)
     - After it is installed, also configure any models/etc as desired.

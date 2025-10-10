@@ -481,6 +481,10 @@ class PromptPlusButton {
     showMenu() {
         this.autoHideMenu();
         let buttons = [];
+        buttons.push({ key: 'llm_refine', key_html: 'Refine with LLM', title: "Use an LLM to refine and improve your prompt", action: () => {
+            this.autoHideMenu();
+            llmPromptRefiner.openModal();
+        }});
         buttons.push({ key: 'segment', key_html: 'Auto Segment Refinement', title: "Automatically segment and refine part of an image (eg clean up a face)", action: () => {
             this.autoHideMenu();
             this.segmentModalClear();

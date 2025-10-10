@@ -44,6 +44,53 @@
         <button type="button" class="btn btn-primary basic-button translate" onclick="promptPlusButton.regionModalSubmit()">Add</button>
     </div>
 @WebUtil.ModalFooter()
+@WebUtil.ModalHeader("llm_prompt_refine_modal", "Refine Prompt with LLM")
+    <div class="modal-body">
+        <span class="translate">
+            Use an LLM (via OpenRouter) to refine and improve your prompt or convert image tags into a coherent prompt.
+            <br>The source will be automatically detected: if an image is selected, it will use the image tags; otherwise, it will use your current prompt text.
+        </span>
+        <hr>
+        <div id="llm_refine_model_selector_container">
+            <label for="llm_refine_model_select" class="translate">Select Model:</label>
+            <select id="llm_refine_model_select" class="auto-dropdown" style="width: 100%; margin-bottom: 10px;">
+                <option value="">Loading models...</option>
+            </select>
+        </div>
+        <div id="llm_refine_system_prompt_container" style="margin-bottom: 10px;">
+            <label for="llm_refine_system_prompt" class="translate">System Prompt (optional):</label>
+            <textarea id="llm_refine_system_prompt" class="auto-text auto-text-block" rows="2" placeholder="Leave empty to use default system prompt..."></textarea>
+        </div>
+        <div id="llm_refine_vision_bypass_container" style="margin-bottom: 10px;">
+            <span class="form-check form-switch display-inline-block">
+                <input type="checkbox" class="form-check-input" id="llm_refine_vision_bypass" title="If checked, will not attempt to send image data even when available (useful for non-vision models)">
+                <label class="form-check-label translate" for="llm_refine_vision_bypass">Bypass Vision (use text only)</label>
+            </span>
+        </div>
+        <div id="llm_refine_source_info" style="margin-bottom: 10px;">
+            <b class="translate">Source:</b> <span id="llm_refine_source_display"></span>
+        </div>
+        <div id="llm_refine_original_container" style="margin-bottom: 10px;">
+            <b class="translate">Original:</b>
+            <textarea id="llm_refine_original_text" class="auto-text auto-text-block" rows="3" readonly style="background-color: #f5f5f5;"></textarea>
+        </div>
+        <div id="llm_refine_result_container" style="display: none; margin-bottom: 10px;">
+            <b class="translate">Refined:</b>
+            <textarea id="llm_refine_result_text" class="auto-text auto-text-block" rows="3" readonly style="background-color: #e8f5e9;"></textarea>
+        </div>
+        <div id="llm_refine_diff_container" style="display: none; margin-bottom: 10px;">
+            <b class="translate">Changes:</b>
+            <div id="llm_refine_diff_display" style="padding: 10px; border: 1px solid #ccc; background-color: #fff; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+        <div id="llm_refine_status" style="margin-bottom: 10px; color: #666;"></div>
+    </div>
+    <div class="modal-footer">
+        <span id="llm_refine_modal_error" class="modal_error_bottom"></span>
+        <button type="button" class="btn btn-primary basic-button translate" id="llm_refine_button" onclick="llmPromptRefiner.refinePrompt()">Refine</button>
+        <button type="button" class="btn btn-success basic-button translate" id="llm_apply_button" onclick="llmPromptRefiner.applyRefinedPrompt()" style="display: none;">Apply</button>
+        <button type="button" class="btn btn-secondary basic-button translate" onclick="$('#llm_prompt_refine_modal').modal('hide')">Close</button>
+    </div>
+@WebUtil.ModalFooter()
 
 <!-- =================================== Installer Modals =================================== -->
 
