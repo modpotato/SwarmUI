@@ -281,6 +281,10 @@ function save_edit_model() {
             }, true);
             return;
         }
+        else {
+            data['preview_image'] = 'clear';
+            delete data['preview_image_metadata'];
+        }
     }
     complete();
 }
@@ -495,6 +499,9 @@ class ModelBrowserWrapper {
 
     formatTriggerPhrases(val) {
         let phrases = val.split(';').map(phrase => phrase.trim()).filter(phrase => phrase.length > 0);
+        if (phrases.length > 128) {
+            phrases = phrases.slice(0, 128);
+        }
         return phrases.map(phrase => this.createCopyableTriggerPhrase(phrase)).join('');
     }
 
