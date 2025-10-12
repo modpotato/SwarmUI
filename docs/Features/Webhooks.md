@@ -45,6 +45,31 @@ For example, if you wanted to send a message on Discord after every generation w
 
 For special info related to images on Discord, see [Discord's docs here](https://discord.com/developers/docs/reference#uploading-files).
 
+### User-Specific Discord Webhook
+
+In addition to the server-wide webhooks, each user can configure their own personal Discord webhook to receive all their generated images. This is configured in the `User` -> `User Settings` tab under the `Discord Webhook` and `Discord Webhook Data` settings.
+
+When a user sets their Discord webhook URL, every image they generate will be automatically posted to their Discord webhook. This is independent of the server-wide `Every Gen` webhook - both can be active at the same time.
+
+The `Discord Webhook Data` setting supports the same features as the server webhooks:
+- Use `[discord_image]` prefix to upload images directly to Discord
+- Use `%tag%` syntax like `%prompt%`, `%model%`, etc. to include metadata
+- Leave it blank to use a simple default message with the image
+
+Example configuration for a user's Discord webhook:
+```json
+[discord_image]
+{
+  "username": "SwarmUI",
+  "content": "Generated: %prompt%"
+}
+```
+
+This feature is useful for:
+- Users who want their generations posted to their personal Discord server
+- Multi-user setups where each user has their own notification channel
+- Keeping a personal log of all your generations in Discord
+
 ## Available Hooks
 
 ### Queue Start Webhook
