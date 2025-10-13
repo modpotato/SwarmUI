@@ -113,6 +113,7 @@ public class WebServer
         RegisterTheme(new("modern_dark", "Modern Dark", ["css/themes/modern.css", "css/themes/modern_dark.css"], true));
         RegisterTheme(new("modern_light", "Modern Light", ["css/themes/modern.css", "css/themes/modern_light.css"], false));
         RegisterTheme(new("solarized", "Solarized Light", ["css/themes/modern.css", "css/themes/solarized.css"], false));
+        RegisterTheme(new("ultradark", "Ultra Dark", ["css/themes/modern.css", "css/themes/ultradark.css"], true));
         RegisterTheme(new("dark_dreams", "Dark Dreams (Legacy)", ["css/themes/dark_dreams.css"], true));
         RegisterTheme(new("gravity_blue", "Gravity Blue (Legacy)", ["css/themes/gravity_blue.css"], true));
         RegisterTheme(new("cyber_swarm", "Cyber Swarm (Legacy)", ["css/themes/cyber_swarm.css"], true));
