@@ -578,6 +578,12 @@ public class Settings : AutoConfiguration
             [ManualSettingsOptions(Impl = null, Vals = ["None", "Spaces", "Underscores"])]
             public string SpacingMode = "None";
         }
+
+        [ConfigComment($"Discord webhook URL to post all generated images to.\nLeave empty to disable.\nThis is a per-user setting - each user can configure their own Discord webhook." + $"\nSee <a target=\"_blank\" href=\"{Utilities.RepoDocsRoot}Features/Webhooks.md\">docs Features/Webhooks</a> for info about Discord webhooks.")]
+        public string DiscordWebhook = "";
+
+        [ConfigComment($"Optional JSON data to send with the Discord webhook.\nThis should be a JSON object, eg '{{\"username\": \"SwarmUI\", \"content\": \"Generated image!\"}}'.\nPrefix with '[discord_image]' to upload the image directly to Discord.\nIf left blank, a default message with the image will be sent." + $"\nSee <a target=\"_blank\" href=\"{Utilities.RepoDocsRoot}Features/Webhooks.md#direct-image-on-discord\">docs Features/Webhooks</a> for info about special tags you can include.")]
+        public string DiscordWebhookData = "[discord_image]\n{\n  \"username\": \"SwarmUI\"\n}";
     }
 
     /// <summary>UI-related settings.</summary>

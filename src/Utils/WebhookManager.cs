@@ -190,6 +190,16 @@ public static class WebhookManager
         {
             SendWebhook("Manual Gen", HookSettings.ManualGenWebhook, HookSettings.ManualGenWebhookData, input, imageData, imageRaw);
         }
+        // Send to user's personal Discord webhook if configured
+        if (input.SourceSession?.User?.Settings is not null)
+        {
+            string userDiscordWebhook = input.SourceSession.User.Settings.DiscordWebhook;
+            if (!string.IsNullOrWhiteSpace(userDiscordWebhook))
+            {
+                string userDiscordData = input.SourceSession.User.Settings.DiscordWebhookData;
+                SendWebhook("User Discord", userDiscordWebhook, userDiscordData, input, imageData, imageRaw);
+            }
+        }
     }
 
     /// <summary>Sends the manual-at-end every-gen webhook.</summary>
