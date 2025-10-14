@@ -66,6 +66,9 @@ public class Settings : AutoConfiguration
     [ConfigComment("Settings related to server performance.")]
     public PerformanceData Performance = new();
 
+    [ConfigComment("Settings related to CivitAI integration for model downloads.")]
+    public CivitAISettings CivitAI = new();
+
     /// <summary>Settings related to Swarm server maintenance..</summary>
     public class ServerMaintenanceData : AutoConfiguration
     {
@@ -745,4 +748,20 @@ public static class AutoConfigExtensions
         }
         return dup;
     }
+}
+
+/// <summary>Settings related to CivitAI integration.</summary>
+public class CivitAISettings : AutoConfiguration
+{
+    [ConfigComment("List of allowed licenses for auto-download from CivitAI. Leave empty to allow all.\nExample values: 'commercial', 'noncommercial', 'all'.\nModels with licenses not in this list will not be auto-downloaded.")]
+    public List<string> AllowedLicenses = new();
+
+    [ConfigComment("If true, allows automatic acceptance of CivitAI Terms of Service for downloads.\nIf false, downloads requiring ToS acceptance will be blocked.\nDefaults to false for safety.")]
+    public bool AllowTosAutoAccept = false;
+
+    [ConfigComment("Maximum file size in bytes for auto-downloads from CivitAI.\nSet to 0 for no limit. Default is 10GB (10737418240 bytes).")]
+    public long MaxDownloadSizeBytes = 10737418240; // 10 GB
+
+    [ConfigComment("Comma-separated list of allowed remote SwarmUI node URLs for model downloads.\nLeave empty to disable remote node downloads.\nExample: 'https://node1.example.com,https://node2.example.com'")]
+    public string AllowedRemoteNodes = "";
 }
