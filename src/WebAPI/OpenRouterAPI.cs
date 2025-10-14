@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using FreneticUtilities.FreneticExtensions;
+using System.Linq;
 
 namespace SwarmUI.WebAPI;
 
@@ -116,8 +117,9 @@ public static class OpenRouterAPI
         [API.APIParameter("The prompt or image tags to refine.")] string sourceText,
         [API.APIParameter("Whether the source is from image tags (true) or text prompt (false).")] bool isImageTags = false,
         [API.APIParameter("Custom system prompt to use (optional).")] string systemPrompt = null,
-    [API.APIParameter("Additional user instructions to send alongside the source text (optional).")] string userPrompt = null,
-        [API.APIParameter("Whether to bypass sending image data even if available.")] bool bypassVision = false)
+        [API.APIParameter("Additional user instructions to send alongside the source text (optional).")] string userPrompt = null,
+        [API.APIParameter("Whether to bypass sending image data even if available.")] bool bypassVision = false,
+        [API.APIParameter("Base64 data URLs or remote image URLs to attach for vision context (optional).")] string[] imageData = null)
     {
         string apiKey = session.User.GetGenericData("openrouter_api", "key");
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -167,13 +169,62 @@ public static class OpenRouterAPI
                 });
             }
 
-            messages.Add(new JObject()
+            string[] images = Array.Empty<string>();
+            if (!bypassVision && imageData is { Length: > 0 })
             {
-                ["role"] = "user",
-                ["content"] = isImageTags
-                    ? $"Here are the image tags to clean up and enhance: {sourceText}"
-                    : $"Here is the prompt to refine into concise image-board style tags: {sourceText}"
-            });
+                images = imageData.Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Select(url => url.Trim())
+                    .Where(url => !string.IsNullOrEmpty(url))
+                    .ToArray();
+            }
+
+            bool includeImage = images.Length > 0;
+            string baseContent = isImageTags
+                ? $"Here are the image tags to clean up and enhance: {sourceText}"
+                : $"Here is the prompt to refine into concise image-board style tags: {sourceText}";
+
+            if (includeImage)
+            {
+                string descriptor = images.Length == 1 ? "An image" : $"{images.Length} images";
+                baseContent += $"\n\n{descriptor} from the user's context are attached for additional guidance. Align the refined tags with what is visible.";
+            }
+
+            JObject userMessage = new()
+            {
+                ["role"] = "user"
+            };
+
+            if (includeImage)
+            {
+                JArray contentArray =
+                [
+                    new JObject()
+                    {
+                        ["type"] = "text",
+                        ["text"] = baseContent
+                    }
+                ];
+
+                foreach (string image in images)
+                {
+                    contentArray.Add(new JObject()
+                    {
+                        ["type"] = "image_url",
+                        ["image_url"] = new JObject()
+                        {
+                            ["url"] = image
+                        }
+                    });
+                }
+
+                userMessage["content"] = contentArray;
+            }
+            else
+            {
+                userMessage["content"] = baseContent;
+            }
+
+            messages.Add(userMessage);
 
             JObject requestBody = new()
             {

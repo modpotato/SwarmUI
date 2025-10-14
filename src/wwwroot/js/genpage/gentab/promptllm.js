@@ -10,6 +10,21 @@ class PromptLLM {
         this.generatedPrompt = null;
         this.blendedPrompt = null;
         this.loraMetadata = null; // Will store available LoRAs and their trigger words
+        this.contextOptions = {
+            includePrompt: true,
+            includeImageTags: false,
+            tagsMode: 'append',
+            includeCurrentImage: false,
+            includeUploadedImage: false
+        };
+        this.contextControlsInitialized = false;
+        this.suppressContextChange = false;
+        this.uploadedImageData = null;
+        this.uploadedImageName = null;
+        this.cachedCurrentImageData = null;
+        this.cachedCurrentImageSrc = null;
+        this.latestImageTags = '';
+        this.hasImageMetadataAvailable = false;
     }
 
     /**
@@ -58,6 +73,338 @@ class PromptLLM {
             console.error('Error fetching LoRA metadata:', error);
             // Continue without LoRA metadata
         }
+    }
+
+    /** Initialize context control event handlers once. */
+    initializeContextControls() {
+        if (this.contextControlsInitialized) {
+            return;
+        }
+        this.contextControlsInitialized = true;
+
+        const promptToggle = document.getElementById('llm_refine_include_prompt');
+        const tagsToggle = document.getElementById('llm_refine_include_image_tags');
+        const tagsBehaviorRadios = document.querySelectorAll('input[name="llm_refine_tags_behavior"]');
+        const currentImageToggle = document.getElementById('llm_refine_include_current_image');
+        const bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
+        const uploadInput = document.getElementById('llm_refine_upload_image');
+        const clearButton = document.getElementById('llm_refine_clear_upload');
+
+        const onContextChange = () => {
+            if (this.suppressContextChange) {
+                return;
+            }
+            this.detectSource();
+            this.updateSourceDisplay();
+        };
+
+        promptToggle?.addEventListener('change', onContextChange);
+
+        tagsToggle?.addEventListener('change', () => {
+            this.updateTagsControlsState();
+            onContextChange();
+        });
+
+        tagsBehaviorRadios.forEach(radio => {
+            radio.addEventListener('change', onContextChange);
+        });
+
+        currentImageToggle?.addEventListener('change', () => {
+            this.updateImageControlsState();
+            onContextChange();
+        });
+
+        bypassCheckbox?.addEventListener('change', () => {
+            this.updateImageControlsState();
+            this.checkVisionSupport();
+        });
+
+        uploadInput?.addEventListener('change', (event) => {
+            this.handleUploadSelected(event);
+        });
+
+        clearButton?.addEventListener('click', () => {
+            this.clearUploadedImage();
+        });
+    }
+
+    /** Refresh availability and defaults for context controls based on current state. */
+    refreshContextAvailability() {
+        const metadata = this.extractImageMetadata();
+        this.hasImageMetadataAvailable = metadata.hasMetadata;
+        this.latestImageTags = metadata.tags;
+
+        this.suppressContextChange = true;
+
+        const promptToggle = document.getElementById('llm_refine_include_prompt');
+        if (promptToggle) {
+            promptToggle.checked = true;
+        }
+
+        const tagsToggle = document.getElementById('llm_refine_include_image_tags');
+        const tagsStatus = document.getElementById('llm_refine_tags_status');
+        if (tagsToggle) {
+            if (!metadata.hasMetadata) {
+                tagsToggle.checked = false;
+                tagsToggle.disabled = true;
+                if (tagsStatus) {
+                    tagsStatus.textContent = 'No image metadata detected for the current image.';
+                }
+            }
+            else {
+                tagsToggle.disabled = false;
+                tagsToggle.checked = true;
+                if (tagsStatus) {
+                    tagsStatus.textContent = 'Configure how image tags contribute to the refinement.';
+                }
+            }
+        }
+
+        const appendRadio = document.getElementById('llm_refine_tags_append');
+        if (appendRadio) {
+            appendRadio.checked = true;
+        }
+
+        const imageToggle = document.getElementById('llm_refine_include_current_image');
+        const imageStatus = document.getElementById('llm_refine_image_status');
+        const hasImage = !!currentImgSrc;
+        if (imageToggle) {
+            imageToggle.checked = false;
+            imageToggle.disabled = !hasImage;
+        }
+        if (imageStatus) {
+            imageStatus.textContent = hasImage ? '' : 'No image is currently selected.';
+        }
+
+        this.clearUploadedImage(true);
+
+        this.suppressContextChange = false;
+
+        this.updateTagsControlsState();
+        this.updateImageControlsState();
+    }
+
+    /** Extract image metadata tags if available. */
+    extractImageMetadata() {
+        let hasMetadata = false;
+        let tags = '';
+        if (currentMetadataVal) {
+            try {
+                let readable = interpretMetadata(currentMetadataVal);
+                if (readable) {
+                    let metadata = JSON.parse(readable);
+                    if (metadata.sui_image_params && metadata.sui_image_params.prompt) {
+                        tags = metadata.sui_image_params.prompt;
+                        hasMetadata = true;
+                    }
+                }
+            }
+            catch (error) {
+                console.error('Error parsing image metadata:', error);
+            }
+        }
+        return { hasMetadata, tags };
+    }
+
+    /** Determine currently selected image-tag behavior. */
+    getTagsMode() {
+        const selected = document.querySelector('input[name="llm_refine_tags_behavior"]:checked');
+        return selected ? selected.value : 'append';
+    }
+
+    /** Whether the current image is selected for vision context. */
+    isCurrentImageSelected() {
+        const toggle = document.getElementById('llm_refine_include_current_image');
+        return !!(toggle && !toggle.disabled && toggle.checked);
+    }
+
+    /** Determine whether any image data should be sent. */
+    shouldSendImageData(bypassVision = null) {
+        const bypass = bypassVision !== null
+            ? bypassVision
+            : (document.getElementById('llm_refine_vision_bypass')?.checked ?? false);
+        if (bypass) {
+            return false;
+        }
+        return this.isCurrentImageSelected() || !!this.uploadedImageData;
+    }
+
+    /** Convert the current image to a data URL if available. */
+    async getCurrentImageDataUrl() {
+        if (!currentImgSrc) {
+            return null;
+        }
+        if (currentImgSrc.startsWith('data:')) {
+            return currentImgSrc;
+        }
+        if (this.cachedCurrentImageSrc === currentImgSrc && this.cachedCurrentImageData) {
+            return this.cachedCurrentImageData;
+        }
+        return await new Promise((resolve, reject) => {
+            try {
+                toDataURL(currentImgSrc, (url) => {
+                    if (url) {
+                        this.cachedCurrentImageSrc = currentImgSrc;
+                        this.cachedCurrentImageData = url;
+                        resolve(url);
+                    }
+                    else {
+                        reject(new Error('Failed to convert current image to data URL.'));
+                    }
+                });
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    /** Gather all image payloads that should be attached to the request. */
+    async collectImageData(bypassVision) {
+        if (!this.shouldSendImageData(bypassVision)) {
+            return [];
+        }
+
+        let payload = [];
+
+        if (this.isCurrentImageSelected()) {
+            const dataUrl = await this.getCurrentImageDataUrl();
+            if (dataUrl) {
+                payload.push(dataUrl);
+            }
+        }
+
+        if (this.uploadedImageData) {
+            payload.push(this.uploadedImageData);
+        }
+
+        return payload;
+    }
+
+    /** Handle manual image uploads for additional vision context. */
+    handleUploadSelected(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) {
+            this.clearUploadedImage();
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            this.showError('Selected file is not an image.');
+            this.clearUploadedImage();
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+            this.uploadedImageData = loadEvent.target.result;
+            this.uploadedImageName = file.name;
+            const preview = document.getElementById('llm_refine_upload_preview');
+            if (preview) {
+                const sizeKB = Math.max(1, Math.round(file.size / 1024));
+                preview.textContent = `${file.name} (${sizeKB} KB) ready to attach.`;
+            }
+            const clearButton = document.getElementById('llm_refine_clear_upload');
+            if (clearButton) {
+                clearButton.style.display = 'inline-flex';
+            }
+            this.contextOptions.includeUploadedImage = true;
+            this.updateImageControlsState();
+            this.updateSourceDisplay();
+        };
+        reader.onerror = () => {
+            this.showError('Failed to read uploaded image. Please try again.');
+            this.clearUploadedImage();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /** Clear any uploaded image from the current session. */
+    clearUploadedImage(silent = false) {
+        this.uploadedImageData = null;
+        this.uploadedImageName = null;
+        const uploadInput = document.getElementById('llm_refine_upload_image');
+        if (uploadInput) {
+            uploadInput.value = '';
+        }
+        const preview = document.getElementById('llm_refine_upload_preview');
+        if (preview) {
+            preview.textContent = '';
+        }
+        const clearButton = document.getElementById('llm_refine_clear_upload');
+        if (clearButton) {
+            clearButton.style.display = 'none';
+        }
+        this.contextOptions.includeUploadedImage = false;
+        if (!silent) {
+            this.updateImageControlsState();
+            this.updateSourceDisplay();
+        }
+    }
+
+    /** Update the state of tag-related controls and messaging. */
+    updateTagsControlsState() {
+        const tagsToggle = document.getElementById('llm_refine_include_image_tags');
+        const tagRadios = document.querySelectorAll('#llm_refine_tags_behavior_group input');
+        const tagLabels = document.querySelectorAll('#llm_refine_tags_behavior_group label');
+        const status = document.getElementById('llm_refine_tags_status');
+
+        const tagsEnabled = !!(tagsToggle && !tagsToggle.disabled && tagsToggle.checked && this.hasImageMetadataAvailable);
+
+        tagRadios.forEach(radio => {
+            radio.disabled = !tagsEnabled;
+        });
+
+        tagLabels.forEach(label => {
+            label.classList.toggle('disabled', !tagsEnabled);
+        });
+
+        if (status) {
+            if (!this.hasImageMetadataAvailable) {
+                status.textContent = 'No image metadata detected for the current image.';
+            }
+            else if (!tagsToggle || !tagsToggle.checked) {
+                status.textContent = 'Toggle on to include image tags in the refinement.';
+            }
+            else {
+                status.textContent = 'Configure how image tags contribute to the refinement.';
+            }
+        }
+    }
+
+    /** Update the state of image attachment controls and helper text. */
+    updateImageControlsState() {
+        const imageToggle = document.getElementById('llm_refine_include_current_image');
+        const uploadInput = document.getElementById('llm_refine_upload_image');
+        const status = document.getElementById('llm_refine_image_status');
+        const bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
+        const bypass = bypassCheckbox ? bypassCheckbox.checked : false;
+        const hasImage = !!currentImgSrc;
+
+        if (imageToggle) {
+            const shouldDisable = !hasImage || bypass;
+            imageToggle.disabled = shouldDisable;
+            if (shouldDisable) {
+                imageToggle.checked = false;
+            }
+        }
+
+        if (uploadInput) {
+            uploadInput.disabled = bypass;
+        }
+
+        if (status) {
+            if (bypass) {
+                status.textContent = 'Vision bypass enabled; attached images will be ignored.';
+            }
+            else if (!hasImage) {
+                status.textContent = 'No image is currently selected.';
+            }
+            else {
+                status.textContent = '';
+            }
+        }
+
+        this.contextOptions.includeCurrentImage = this.isCurrentImageSelected();
     }
 
     /**
@@ -158,9 +505,17 @@ class PromptLLM {
      * Open the refinement modal and prepare the source.
      */
     openModal() {
+        this.initializeContextControls();
+
+        // Reset UI state before loading context
+        this.resetUI();
+
+        // Ensure current availability is reflected in toggles
+        this.refreshContextAvailability();
+
         // Detect source (image tags or prompt text)
         this.detectSource();
-        
+
         // Initialize models if not already loaded
         if (this.models.length === 0) {
             this.init();
@@ -171,11 +526,9 @@ class PromptLLM {
             this.fetchLoraMetadata();
         }
 
-        // Reset UI
-        this.resetUI();
-
         // Update display
         this.updateSourceDisplay();
+        this.checkVisionSupport();
 
         // Show modal
         $('#llm_prompt_refine_modal').modal('show');
@@ -196,12 +549,15 @@ class PromptLLM {
         let selectedOption = modelSelect.options[modelSelect.selectedIndex];
         let supportsVision = selectedOption.dataset.supportsVision === 'true';
 
-        // If using image tags and model doesn't support vision, show warning and auto-check bypass
-        if (this.currentSourceType === 'image_tags' && !supportsVision && !bypassCheckbox.checked) {
+        const wantsVision = this.shouldSendImageData(bypassCheckbox.checked);
+
+        if (wantsVision && !supportsVision && !bypassCheckbox.checked) {
             statusDiv.textContent = 'Warning: Selected model may not support vision. "Bypass Vision" has been enabled.';
             statusDiv.style.color = '#ff8800';
             bypassCheckbox.checked = true;
-        } else {
+            this.updateImageControlsState();
+        }
+        else {
             statusDiv.textContent = '';
             statusDiv.style.color = '#666';
         }
@@ -212,56 +568,82 @@ class PromptLLM {
      * Supports enhanced context control modes.
      */
     detectSource() {
-        // Check if an image is selected and has metadata
-        let hasImageMetadata = false;
-        let imageTags = '';
+        const { hasMetadata, tags } = this.extractImageMetadata();
+        this.hasImageMetadataAvailable = hasMetadata;
+        this.latestImageTags = tags;
 
-        if (currentMetadataVal) {
-            try {
-                let readable = interpretMetadata(currentMetadataVal);
-                if (readable) {
-                    let metadata = JSON.parse(readable);
-                    if (metadata.sui_image_params && metadata.sui_image_params.prompt) {
-                        imageTags = metadata.sui_image_params.prompt;
-                        hasImageMetadata = true;
+        const promptToggle = document.getElementById('llm_refine_include_prompt');
+        const promptBox = document.getElementById('alt_prompt_textbox');
+        const promptText = promptBox ? promptBox.value.trim() : '';
+        const includePrompt = !!(promptToggle && !promptToggle.disabled && promptToggle.checked && promptText.length > 0);
+
+        const tagsToggle = document.getElementById('llm_refine_include_image_tags');
+        const includeTags = !!(hasMetadata && tagsToggle && !tagsToggle.disabled && tagsToggle.checked && tags.length > 0);
+        const tagsMode = includeTags ? this.getTagsMode() : 'append';
+
+        this.contextOptions.includePrompt = includePrompt;
+        this.contextOptions.includeImageTags = includeTags;
+        this.contextOptions.tagsMode = tagsMode;
+        this.contextOptions.includeCurrentImage = this.isCurrentImageSelected();
+        this.contextOptions.includeUploadedImage = !!this.uploadedImageData;
+
+        this.currentSource = '';
+        this.currentSourceType = 'none';
+        this.imageMetadataContext = null;
+
+        if (!includePrompt && !includeTags) {
+            if (promptText) {
+                this.currentSource = promptText;
+                this.currentSourceType = 'prompt_text';
+            }
+            else if (tags) {
+                this.currentSource = tags;
+                this.currentSourceType = 'image_tags_only';
+            }
+            return;
+        }
+
+        if (includeTags && (!includePrompt || tagsMode === 'replace')) {
+            this.currentSource = tags;
+            this.currentSourceType = 'image_tags_only';
+            return;
+        }
+
+        if (includePrompt) {
+            this.currentSource = promptText;
+            this.currentSourceType = 'prompt_text';
+        }
+
+        if (includeTags) {
+            if (tagsMode === 'append') {
+                if (this.currentSource) {
+                    let base = this.currentSource.trim();
+                    let separator = ',';
+                    if (base.endsWith(',') || base.endsWith(';') || base.endsWith('.')) {
+                        separator = '';
                     }
+                    this.currentSource = `${base}${separator ? separator + ' ' : ' '}${tags}`.trim();
+                    this.currentSourceType = 'prompt_plus_tags';
                 }
-            } catch (e) {
-                console.error('Error parsing image metadata:', e);
+                else {
+                    this.currentSource = tags;
+                    this.currentSourceType = 'image_tags_only';
+                }
+            }
+            else if (tagsMode === 'reference') {
+                this.imageMetadataContext = tags;
+                if (!this.currentSource) {
+                    this.currentSource = tags;
+                    this.currentSourceType = 'image_tags_only';
+                }
+                else {
+                    this.currentSourceType = 'prompt_with_tag_reference';
+                }
             }
         }
 
-        // Get current prompt text
-        let promptBox = document.getElementById('alt_prompt_textbox');
-        let currentPrompt = promptBox ? promptBox.value.trim() : '';
-
-        // Get context mode
-        let contextMode = document.getElementById('llm_refine_context_mode');
-        let mode = contextMode ? contextMode.value : 'replace';
-
-        if (hasImageMetadata && imageTags) {
-            if (mode === 'replace') {
-                // Traditional behavior: use image tags
-                this.currentSource = imageTags;
-                this.currentSourceType = 'image_tags';
-            } else if (mode === 'inspire') {
-                // Keep prompt, use image metadata as inspiration
-                this.currentSource = currentPrompt || imageTags;
-                this.currentSourceType = 'prompt_inspired';
-                this.imageMetadataContext = imageTags;
-            } else if (mode === 'append') {
-                // Append image metadata to current prompt
-                if (currentPrompt) {
-                    this.currentSource = currentPrompt + ', ' + imageTags;
-                } else {
-                    this.currentSource = imageTags;
-                }
-                this.currentSourceType = 'prompt_appended';
-            }
-        } else {
-            // Use current prompt text
-            this.currentSource = currentPrompt;
-            this.currentSourceType = 'prompt_text';
+        if (!this.currentSource) {
+            this.currentSourceType = 'none';
         }
     }
 
@@ -269,13 +651,56 @@ class PromptLLM {
      * Update the source display in the modal.
      */
     updateSourceDisplay() {
-        let sourceDisplay = document.getElementById('llm_refine_source_display');
-        let originalText = document.getElementById('llm_refine_original_text');
+        const sourceDisplay = document.getElementById('llm_refine_source_display');
+        const visionDisplay = document.getElementById('llm_refine_vision_display');
+        const originalText = document.getElementById('llm_refine_original_text');
 
         if (sourceDisplay) {
-            sourceDisplay.textContent = this.currentSourceType === 'image_tags' 
-                ? 'Image Tags from selected image' 
-                : 'Current Prompt Text';
+            const parts = [];
+            const promptToggle = document.getElementById('llm_refine_include_prompt');
+            const promptBox = document.getElementById('alt_prompt_textbox');
+            const hasPromptText = promptBox && promptBox.value.trim().length > 0;
+            if (promptToggle && promptToggle.checked) {
+                parts.push(hasPromptText ? 'Current prompt' : 'Current prompt (empty)');
+            }
+            const tagsToggle = document.getElementById('llm_refine_include_image_tags');
+            if (tagsToggle && tagsToggle.checked) {
+                if (!this.hasImageMetadataAvailable) {
+                    parts.push('Image tags (not available)');
+                }
+                else {
+                    if (this.contextOptions.tagsMode === 'append') {
+                        parts.push('Image tags (append)');
+                    }
+                    else if (this.contextOptions.tagsMode === 'reference') {
+                        parts.push('Image tags (inspiration)');
+                    }
+                    else {
+                        parts.push('Image tags (replace)');
+                    }
+                }
+            }
+            sourceDisplay.textContent = parts.length > 0 ? parts.join(' + ') : 'None selected';
+        }
+
+        if (visionDisplay) {
+            const attachments = [];
+            if (this.isCurrentImageSelected()) {
+                attachments.push('Current image');
+            }
+            if (this.uploadedImageData) {
+                attachments.push(this.uploadedImageName ? `Uploaded: ${this.uploadedImageName}` : 'Uploaded image');
+            }
+            const bypass = document.getElementById('llm_refine_vision_bypass')?.checked ?? false;
+            if (attachments.length === 0) {
+                visionDisplay.textContent = 'None';
+            }
+            else if (bypass) {
+                visionDisplay.textContent = `${attachments.join(', ')} (ignored due to bypass)`;
+            }
+            else {
+                visionDisplay.textContent = attachments.join(', ');
+            }
         }
 
         if (originalText) {
@@ -337,12 +762,50 @@ class PromptLLM {
             userPromptInput.value = '';
         }
         
+        // Reset context controls to defaults
+        this.suppressContextChange = true;
+        let promptToggle = document.getElementById('llm_refine_include_prompt');
+        if (promptToggle) {
+            promptToggle.checked = true;
+        }
+        let tagsToggle = document.getElementById('llm_refine_include_image_tags');
+        if (tagsToggle) {
+            tagsToggle.checked = false;
+        }
+        let appendRadio = document.getElementById('llm_refine_tags_append');
+        if (appendRadio) {
+            appendRadio.checked = true;
+        }
+        let imageToggle = document.getElementById('llm_refine_include_current_image');
+        if (imageToggle) {
+            imageToggle.checked = false;
+        }
+        this.suppressContextChange = false;
+
+        // Clear uploaded image and cached previews
+        this.clearUploadedImage(true);
+        this.cachedCurrentImageData = null;
+        this.cachedCurrentImageSrc = null;
+    this.imageMetadataContext = null;
+    this.hasImageMetadataAvailable = false;
+    this.latestImageTags = '';
+        this.contextOptions = {
+            includePrompt: true,
+            includeImageTags: false,
+            tagsMode: 'append',
+            includeCurrentImage: false,
+            includeUploadedImage: false
+        };
+
         // Uncheck vision bypass by default
         let bypassCheckbox = document.getElementById('llm_refine_vision_bypass');
         if (bypassCheckbox) {
             bypassCheckbox.checked = false;
         }
-        
+
+        this.updateTagsControlsState();
+        this.updateImageControlsState();
+
         this.refinedPrompt = null;
     }
 
@@ -386,15 +849,31 @@ class PromptLLM {
             let systemPrompt = this.buildSystemPromptWithBestPractices();
             
             // Add context for inspiration mode
-            if (this.currentSourceType === 'prompt_inspired' && this.imageMetadataContext) {
+            if (this.imageMetadataContext) {
                 systemPrompt += '\n\nThe user wants to keep their current prompt but draw inspiration from image metadata. ' +
                     `Image metadata for inspiration: ${this.imageMetadataContext}`;
+            }
+
+            let imagePayload = [];
+            try {
+                imagePayload = await this.collectImageData(bypassVision);
+            }
+            catch (imageError) {
+                console.error('Error preparing vision attachments:', imageError);
+                this.showError('Failed to prepare selected image attachments. Please try again.');
+                if (status) {
+                    status.textContent = '';
+                }
+                if (refineButton) {
+                    refineButton.disabled = false;
+                }
+                return;
             }
 
             let requestBody = {
                 modelId: modelId,
                 sourceText: this.currentSource,
-                isImageTags: this.currentSourceType.includes('image_tags') || this.currentSourceType.includes('appended'),
+                isImageTags: this.currentSourceType === 'image_tags_only' || this.currentSourceType === 'prompt_plus_tags',
                 bypassVision: bypassVision,
                 systemPrompt: systemPrompt
             };
@@ -402,6 +881,10 @@ class PromptLLM {
             // Add additional user prompt if provided
             if (customUserPrompt) {
                 requestBody.userPrompt = customUserPrompt;
+            }
+
+            if (imagePayload.length > 0) {
+                requestBody.imageData = imagePayload;
             }
 
             let data = await new Promise((resolve, reject) => {

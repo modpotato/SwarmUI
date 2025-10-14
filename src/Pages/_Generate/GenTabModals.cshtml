@@ -91,17 +91,46 @@
                         <label class="form-check-label translate" for="llm_refine_vision_bypass">Bypass Vision (use text only)</label>
                     </span>
                 </div>
-                <div id="llm_refine_context_mode_container" style="margin-bottom: 10px;">
-                    <label for="llm_refine_context_mode" class="translate">Context Mode:</label>
-                    <select id="llm_refine_context_mode" class="auto-dropdown" style="width: 100%;">
-                        <option value="replace">Replace prompt with image metadata</option>
-                        <option value="inspire">Keep prompt, use image metadata as inspiration</option>
-                        <option value="append">Append image metadata to current prompt</option>
-                    </select>
-                    <small class="form-text text-muted translate">Choose how to handle image metadata when available.</small>
+                <div id="llm_refine_context_controls" style="margin-bottom: 10px;">
+                    <label class="translate">Context Options:</label>
+                    <div class="llm-context-section">
+                        <span class="form-check form-switch display-inline-block" style="margin-right: 8px;">
+                            <input type="checkbox" class="form-check-input" id="llm_refine_include_prompt" checked>
+                            <label class="form-check-label translate" for="llm_refine_include_prompt">Include current prompt</label>
+                        </span>
+                        <span class="form-check form-switch display-inline-block" id="llm_refine_include_tags_wrapper" style="margin-right: 8px;">
+                            <input type="checkbox" class="form-check-input" id="llm_refine_include_image_tags">
+                            <label class="form-check-label translate" for="llm_refine_include_image_tags">Include image tags from current view</label>
+                        </span>
+                        <div id="llm_refine_tags_behavior_group" class="btn-group btn-group-sm" role="group" aria-label="Image tag usage" style="margin-top: 6px;">
+                            <input type="radio" class="btn-check" name="llm_refine_tags_behavior" id="llm_refine_tags_append" value="append" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary translate" for="llm_refine_tags_append">Append to prompt</label>
+                            <input type="radio" class="btn-check" name="llm_refine_tags_behavior" id="llm_refine_tags_reference" value="reference" autocomplete="off">
+                            <label class="btn btn-outline-secondary translate" for="llm_refine_tags_reference">Use as inspiration</label>
+                            <input type="radio" class="btn-check" name="llm_refine_tags_behavior" id="llm_refine_tags_replace" value="replace" autocomplete="off">
+                            <label class="btn btn-outline-secondary translate" for="llm_refine_tags_replace">Replace prompt</label>
+                        </div>
+                        <small class="form-text text-muted" id="llm_refine_tags_status">Configure how image tags contribute to the refinement.</small>
+                    </div>
+                    <div class="llm-context-section" style="margin-top: 12px;">
+                        <span class="form-check form-switch display-inline-block" style="margin-right: 8px;">
+                            <input type="checkbox" class="form-check-input" id="llm_refine_include_current_image">
+                            <label class="form-check-label translate" for="llm_refine_include_current_image">Attach current image</label>
+                        </span>
+                        <div class="d-flex flex-wrap align-items-center gap-2" style="margin-top: 6px;">
+                            <label class="form-label translate" for="llm_refine_upload_image" style="margin-bottom: 0;">Upload image:</label>
+                            <input type="file" id="llm_refine_upload_image" accept="image/*" class="form-control form-control-sm" style="max-width: 260px;">
+                            <button type="button" class="btn btn-outline-secondary btn-sm translate" id="llm_refine_clear_upload" style="display: none;">Clear</button>
+                        </div>
+                        <small class="form-text text-muted" id="llm_refine_image_status"></small>
+                        <div id="llm_refine_upload_preview" class="small text-muted" style="margin-top: 4px; min-height: 1.2em;"></div>
+                    </div>
                 </div>
                 <div id="llm_refine_source_info" style="margin-bottom: 10px;">
-                    <b class="translate">Source:</b> <span id="llm_refine_source_display"></span>
+                    <b class="translate">Text Context:</b> <span id="llm_refine_source_display"></span>
+                </div>
+                <div id="llm_refine_vision_info" style="margin-bottom: 10px;">
+                    <b class="translate">Vision Attachments:</b> <span id="llm_refine_vision_display" class="text-muted">None</span>
                 </div>
                 <div id="llm_refine_original_container" style="margin-bottom: 10px;">
                     <b class="translate">Original:</b>
