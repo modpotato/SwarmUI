@@ -246,6 +246,8 @@ public static class OpenRouterAPI
                 Logs.Error($"OpenRouter API error: {response.StatusCode} - {content}");
                 string message = response.StatusCode switch
                 {
+                    System.Net.HttpStatusCode.RequestEntityTooLarge
+                        => "Request too large: The attached image(s) or prompt exceed the provider's size limit. Try using smaller images, fewer images, or enable 'Bypass Vision' to send text only.",
                     System.Net.HttpStatusCode.NotFound when content.Contains("No endpoints found matching your data policy")
                         => "OpenRouter couldn't find a model that matches your privacy settings. Visit https://openrouter.ai/settings/privacy to enable providers for your account.",
                     System.Net.HttpStatusCode.TooManyRequests

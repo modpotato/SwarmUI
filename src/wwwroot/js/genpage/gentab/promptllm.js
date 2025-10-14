@@ -259,6 +259,14 @@ class PromptLLM {
         });
     }
 
+    /** Calculate approximate size of a base64 data URL in KB. */
+    getDataUrlSizeKB(dataUrl) {
+        if (!dataUrl) return 0;
+        // Base64 encoding adds ~33% overhead, but we can estimate from string length
+        // Actual bytes = (string length * 3) / 4, roughly
+        return Math.round((dataUrl.length * 3) / (4 * 1024));
+    }
+
     /** Gather all image payloads that should be attached to the request. */
     async collectImageData(bypassVision) {
         if (!this.shouldSendImageData(bypassVision)) {
@@ -300,8 +308,9 @@ class PromptLLM {
             this.uploadedImageName = file.name;
             const preview = document.getElementById('llm_refine_upload_preview');
             if (preview) {
-                const sizeKB = Math.max(1, Math.round(file.size / 1024));
-                preview.textContent = `${file.name} (${sizeKB} KB) ready to attach.`;
+                const originalSizeKB = Math.max(1, Math.round(file.size / 1024));
+                const base64SizeKB = this.getDataUrlSizeKB(this.uploadedImageData);
+                preview.textContent = `${file.name} ready to attach (${originalSizeKB} KB file → ~${base64SizeKB} KB as base64).`;
             }
             const clearButton = document.getElementById('llm_refine_clear_upload');
             if (clearButton) {
@@ -398,6 +407,14 @@ class PromptLLM {
             }
             else if (!hasImage) {
                 status.textContent = 'No image is currently selected.';
+            }
+            else if (this.isCurrentImageSelected() && this.cachedCurrentImageData) {
+                // Show current image size when it's selected and cached
+                const sizeKB = this.getDataUrlSizeKB(this.cachedCurrentImageData);
+                status.textContent = `Current image will be attached (~${sizeKB} KB as base64).`;
+            }
+            else if (this.isCurrentImageSelected()) {
+                status.textContent = 'Current image will be attached.';
             }
             else {
                 status.textContent = '';
@@ -872,6 +889,42 @@ class PromptLLM {
             let imagePayload = [];
             try {
                 imagePayload = await this.collectImageData(bypassVision);
+                
+                // Calculate and display total payload size
+                if (imagePayload.length > 0) {
+                    let totalImageSizeKB = 0;
+                    imagePayload.forEach(dataUrl => {
+                        totalImageSizeKB += this.getDataUrlSizeKB(dataUrl);
+                    });
+                    
+                    console.log(`LLM Refiner: Sending ${imagePayload.length} image(s), total ~${totalImageSizeKB} KB as base64`);
+                    
+                    // Warn if payload is very large
+                    if (totalImageSizeKB > 800) {
+                        const proceed = confirm(
+                            `Warning: The attached image(s) are very large (~${totalImageSizeKB} KB as base64).\n\n` +
+                            `This may exceed the provider's request size limit and cause a "Request Too Large" error.\n\n` +
+                            `Consider:\n` +
+                            `• Using smaller/compressed images\n` +
+                            `• Attaching fewer images\n` +
+                            `• Enabling "Bypass Vision" to send text only\n\n` +
+                            `Do you want to proceed anyway?`
+                        );
+                        if (!proceed) {
+                            if (status) {
+                                status.textContent = 'Refinement cancelled.';
+                                status.style.color = '#666';
+                            }
+                            if (refineButton) {
+                                refineButton.disabled = false;
+                            }
+                            return;
+                        }
+                    }
+                    else if (totalImageSizeKB > 400) {
+                        console.warn(`LLM Refiner: Large image payload (~${totalImageSizeKB} KB). May fail with some providers.`);
+                    }
+                }
             }
             catch (imageError) {
                 console.error('Error preparing vision attachments:', imageError);
