@@ -712,6 +712,11 @@ class PromptLLM {
      * Reset the UI to initial state.
      */
     resetUI() {
+        let originalContainer = document.getElementById('llm_refine_original_container');
+        if (originalContainer) {
+            originalContainer.style.display = 'block';
+        }
+
         let resultContainer = document.getElementById('llm_refine_result_container');
         if (resultContainer) {
             resultContainer.style.display = 'none';
@@ -722,17 +727,27 @@ class PromptLLM {
             diffContainer.style.display = 'none';
         }
 
+        let inlineViewerContainer = document.getElementById('llm_refine_inline_viewer_container');
+        if (inlineViewerContainer) {
+            inlineViewerContainer.style.display = 'none';
+        }
+
+        let inlineViewer = document.getElementById('llm_refine_inline_viewer');
+        if (inlineViewer) {
+            inlineViewer.innerHTML = '<div style="opacity: 0.6; font-style: italic;">No refinement yet.</div>';
+        }
+
         let diffDisplay = document.getElementById('llm_refine_diff_display');
         if (diffDisplay) {
             diffDisplay.innerHTML = '<div style="opacity: 0.6; font-style: italic;">No changes yet.</div>';
         }
 
-        let refineButton = document.getElementById('llm_refine_button');
-        if (refineButton) {
-            refineButton.disabled = false;
-            refineButton.classList.remove('btn-info');
-            if (!refineButton.classList.contains('btn-primary')) {
-                refineButton.classList.add('btn-primary');
+        let actionButton = document.getElementById('llm_action_button');
+        if (actionButton) {
+            actionButton.disabled = false;
+            actionButton.classList.remove('btn-info');
+            if (!actionButton.classList.contains('btn-primary')) {
+                actionButton.classList.add('btn-primary');
             }
         }
 
@@ -928,36 +943,47 @@ class PromptLLM {
      * Display the refined prompt and show diff.
      */
     displayRefinedPrompt() {
-        let resultText = document.getElementById('llm_refine_result_text');
+        let inlineViewerContainer = document.getElementById('llm_refine_inline_viewer_container');
+        let inlineViewer = document.getElementById('llm_refine_inline_viewer');
+        let originalContainer = document.getElementById('llm_refine_original_container');
         let resultContainer = document.getElementById('llm_refine_result_container');
         let diffContainer = document.getElementById('llm_refine_diff_container');
         let applyButton = document.getElementById('llm_apply_button');
+        let actionButton = document.getElementById('llm_action_button');
 
-        if (resultText) {
-            resultText.value = this.refinedPrompt;
+        // Hide the old three-box layout
+        if (originalContainer) {
+            originalContainer.style.display = 'none';
         }
-
         if (resultContainer) {
-            resultContainer.style.display = 'block';
+            resultContainer.style.display = 'none';
         }
-
-        // Generate and display diff
-        this.displayDiff();
-
         if (diffContainer) {
-            diffContainer.style.display = 'block';
+            diffContainer.style.display = 'none';
         }
 
+        // Generate and display inline diff
+        if (inlineViewer) {
+            let inlineDiffHtml = this.generateInlineDiff(this.currentSource || '', this.refinedPrompt || '');
+            inlineViewer.innerHTML = inlineDiffHtml;
+        }
+
+        // Show the new inline viewer
+        if (inlineViewerContainer) {
+            inlineViewerContainer.style.display = 'block';
+        }
+
+        // Make Apply button primary (green and prominent)
         if (applyButton) {
             applyButton.style.display = 'inline-block';
             applyButton.classList.remove('btn-secondary');
             applyButton.classList.add('btn-success');
         }
 
-        let refineButton = document.getElementById('llm_refine_button');
-        if (refineButton) {
-            refineButton.classList.remove('btn-primary');
-            refineButton.classList.add('btn-info');
+        // De-emphasize the action button (change from primary to info)
+        if (actionButton) {
+            actionButton.classList.remove('btn-primary');
+            actionButton.classList.add('btn-info');
         }
     }
 
@@ -1047,6 +1073,94 @@ class PromptLLM {
 
         html += '</div>';
         return html;
+    }
+
+    /**
+     * Generate inline diff HTML with additions highlighted in green and removals struck through in red.
+     */
+    generateInlineDiff(originalText, refinedText) {
+        // Split into words while preserving spaces and punctuation
+        const originalWords = originalText.match(/\S+|\s+/g) || [];
+        const refinedWords = refinedText.match(/\S+|\s+/g) || [];
+        
+        // Build frequency maps (case-insensitive for matching)
+        let originalCounts = Object.create(null);
+        let refinedCounts = Object.create(null);
+        
+        for (let word of originalWords) {
+            if (/^\s+$/.test(word)) continue; // Skip pure whitespace
+            let key = word.toLowerCase();
+            originalCounts[key] = (originalCounts[key] || 0) + 1;
+        }
+        
+        for (let word of refinedWords) {
+            if (/^\s+$/.test(word)) continue; // Skip pure whitespace
+            let key = word.toLowerCase();
+            refinedCounts[key] = (refinedCounts[key] || 0) + 1;
+        }
+        
+        // Track which words are added or removed
+        let removedKeys = Object.create(null);
+        let addedKeys = Object.create(null);
+        
+        for (let key of Object.keys(originalCounts)) {
+            let diff = originalCounts[key] - (refinedCounts[key] || 0);
+            if (diff > 0) {
+                removedKeys[key] = diff;
+            }
+        }
+        
+        for (let key of Object.keys(refinedCounts)) {
+            let diff = refinedCounts[key] - (originalCounts[key] || 0);
+            if (diff > 0) {
+                addedKeys[key] = diff;
+            }
+        }
+        
+        // Build the inline HTML
+        let html = '';
+        let usedRemovals = Object.create(null);
+        let usedAdditions = Object.create(null);
+        
+        // Styles for inline highlights
+        const addedStyle = 'background-color: rgba(76, 175, 80, 0.25); padding: 2px 4px; border-radius: 3px; color: inherit;';
+        const removedStyle = 'background-color: rgba(255, 99, 132, 0.25); padding: 2px 4px; border-radius: 3px; text-decoration: line-through; color: rgba(255, 99, 132, 0.8);';
+        
+        for (let word of refinedWords) {
+            if (/^\s+$/.test(word)) {
+                // Preserve whitespace as-is
+                html += escapeHtml(word);
+            } else {
+                let key = word.toLowerCase();
+                let isAddition = addedKeys[key] > 0 && (!usedAdditions[key] || usedAdditions[key] < addedKeys[key]);
+                
+                if (isAddition) {
+                    html += `<span style="${addedStyle}">${escapeHtml(word)}</span>`;
+                    usedAdditions[key] = (usedAdditions[key] || 0) + 1;
+                } else {
+                    html += escapeHtml(word);
+                }
+            }
+        }
+        
+        // Add removed words at the end (struck through)
+        let removedHtml = '';
+        for (let word of originalWords) {
+            if (/^\s+$/.test(word)) continue; // Skip whitespace for removals
+            let key = word.toLowerCase();
+            let isRemoval = removedKeys[key] > 0 && (!usedRemovals[key] || usedRemovals[key] < removedKeys[key]);
+            
+            if (isRemoval) {
+                removedHtml += `<span style="${removedStyle}">${escapeHtml(word)}</span> `;
+                usedRemovals[key] = (usedRemovals[key] || 0) + 1;
+            }
+        }
+        
+        if (removedHtml) {
+            html += ' ' + removedHtml.trim();
+        }
+        
+        return html || '<span style="opacity: 0.7;">No changes detected.</span>';
     }
 
     /**
