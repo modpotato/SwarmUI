@@ -42,6 +42,7 @@ public static class BasicAPIFeatures
         API.RegisterAPICall(GetAPIKeyStatus, false, Permissions.ReadUserSettings);
         T2IAPI.Register();
         ModelsAPI.Register();
+        PromptsAPI.Register();
         BackendAPI.Register();
         AdminAPI.Register();
         UtilAPI.Register();
