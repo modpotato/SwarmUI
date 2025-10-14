@@ -1,0 +1,23 @@
+:root {
+    --background-soft: #0f0f0f;
+    --background-gray: #0a0a0a;
+    --background-gray-danger: #1a0606;
+    --shadow: #1a1a1a;
+    --light-border: #1a1a1a;
+    --popup-front: #cccccc;
+    --button-foreground-disabled: #666666;
+    --text-soft: #888888;
+    --background: #000000;
+    --text: #b8b8b8;
+    --text-strong: #e0e0e0;
+    --emphasis: #6844c7;
+    --emphasis-soft: #4a3380;
+    --button-text: #d0d0d0;
+    --background-panel: #050505;
+    --background-panel-subtle: rgba(255, 255, 255, 0.02);
+    --emphasis-text: var(--button-text);
+    --border-color: #1a1a1a;
+    --button-background: #1a1a1a;
+    --range-track-color: #000000;
+    --range-thumb-color: #1a1a1a;
+}
