@@ -1,4 +1,5 @@
 using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticToolkit;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
@@ -12,6 +13,9 @@ public class CivitAIResolver
 {
     private readonly Session _session;
     private static readonly HttpClient _httpClient = new();
+    
+    /// <summary>ASCII matcher for sanitizing API tokens.</summary>
+    private static readonly AsciiMatcher TokenTextLimiter = new(AsciiMatcher.BothCaseLetters + AsciiMatcher.Digits + " -_.,/");
 
     public CivitAIResolver(Session session)
     {
@@ -97,13 +101,14 @@ public class CivitAIResolver
         try
         {
             string url = $"https://civitai.com/api/v1/model-versions/by-hash/{sha256}";
-            HttpRequestMessage request = new(HttpMethod.Get, url);
             
+            // CivitAI uses URL query parameter for authentication, not Bearer token
             if (!string.IsNullOrEmpty(apiKey))
             {
-                request.Headers.Add("Authorization", $"Bearer {apiKey}");
+                url += $"?token={TokenTextLimiter.TrimToMatches(apiKey)}";
             }
-
+            
+            HttpRequestMessage request = new(HttpMethod.Get, url);
             HttpResponseMessage response = await _httpClient.SendAsync(request);
             
             if (!response.IsSuccessStatusCode)
@@ -134,13 +139,14 @@ public class CivitAIResolver
         try
         {
             string url = $"https://civitai.com/api/v1/model-versions/{versionId}";
-            HttpRequestMessage request = new(HttpMethod.Get, url);
             
+            // CivitAI uses URL query parameter for authentication, not Bearer token
             if (!string.IsNullOrEmpty(apiKey))
             {
-                request.Headers.Add("Authorization", $"Bearer {apiKey}");
+                url += $"?token={TokenTextLimiter.TrimToMatches(apiKey)}";
             }
-
+            
+            HttpRequestMessage request = new(HttpMethod.Get, url);
             HttpResponseMessage response = await _httpClient.SendAsync(request);
             
             if (!response.IsSuccessStatusCode)
