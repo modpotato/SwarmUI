@@ -157,6 +157,16 @@ public class Settings : AutoConfiguration
             + "\nDefaults to 60 * 24 * 7 = 1 week (ultra-long max queue duration).")]
         public int PerRequestTimeoutMinutes = 60 * 24 * 7;
 
+        [ConfigComment("If true, pause the queue when all backends go down instead of failing pending requests.\n"
+            + "When enabled, queued generations survive transient outages and resume automatically once a backend is back.\n"
+            + "Defaults to false to preserve existing fail-fast behavior for current installations.")]
+        public bool PauseOnOutage = false;
+
+        [ConfigComment("Maximum duration in minutes to keep requests paused during a backend outage before auto-failing them.\n"
+            + "This acts as a safety net for prolonged outages when PauseOnOutage is enabled.\n"
+            + "Defaults to 240 minutes (4 hours). Set to 0 or negative to pause indefinitely.")]
+        public int OutagePauseTTLMinutes = 240;
+
         [ConfigComment("The maximum number of pending requests to continue forcing orderly processing of.\nOver this limit, requests may start going out of order.")]
         public int MaxRequestsForcedOrder = 20;
 

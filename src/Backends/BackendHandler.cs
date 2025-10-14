@@ -140,6 +140,16 @@ public class BackendHandler
                     ["any_loading"] = false
                 };
             }
+            if (IsOutagePaused)
+            {
+                return new()
+                {
+                    ["status"] = "paused",
+                    ["class"] = "warn",
+                    ["message"] = "Queue is paused: waiting for backends to recover.",
+                    ["any_loading"] = backends.Any(b => b.Backend.Status == BackendStatus.LOADING || b.Backend.Status == BackendStatus.WAITING)
+                };
+            }
             BackendStatus[] statuses = [.. backends.Select(b => b.Backend.Status)];
             int loading = statuses.Count(s => s == BackendStatus.LOADING || s == BackendStatus.WAITING);
             if (statuses.Any(s => s == BackendStatus.ERRORED))
@@ -751,6 +761,12 @@ public class BackendHandler
 
     private volatile bool HasShutdown;
 
+    /// <summary>If true, the queue is paused waiting for backends to recover from an outage.</summary>
+    private volatile bool IsOutagePaused;
+
+    /// <summary>The time (TickCount64) when the outage pause started, or 0 if not paused.</summary>
+    private long OutagePauseStartTime;
+
     /// <summary>Main shutdown handler, triggered by <see cref="Program.Shutdown"/>.</summary>
     public void Shutdown()
     {
@@ -921,8 +937,8 @@ public class BackendHandler
                     else
                     {
                         Logs.Verbose($"[BackendHandler] count notEnabled = {currentBackends.Count(b => !b.Backend.IsEnabled)}, shutDownReserve = {currentBackends.Count(b => b.Backend.ShutDownReserve)}, directReserved = {currentBackends.Count(b => b.Backend.Reservations > 0)}, statusNotRunning = {currentBackends.Count(b => b.Backend.Status != BackendStatus.RUNNING)}");
-                        Logs.Warning("[BackendHandler] No backends are available! Cannot generate anything.");
-                        Failure = new SwarmUserErrorException("No backends available!");
+                        Logs.Warning("[BackendHandler] No backends are available! Waiting for backends to become available...");
+                        // Don't set Failure here - let the caller's maxWait timeout handle it
                     }
                 }
                 return;
@@ -941,8 +957,8 @@ public class BackendHandler
                 }
                 else
                 {
-                    Logs.Warning($"[BackendHandler] No backends match the request! Cannot generate anything.{reason}");
-                    Failure = new SwarmUserErrorException($"No backends match the settings of the request given!{reason}");
+                    Logs.Warning($"[BackendHandler] No backends match the request! Waiting for backends to become available...{reason}");
+                    // Don't set Failure here - let the caller's maxWait timeout handle it
                 }
                 return;
             }
@@ -1138,16 +1154,74 @@ public class BackendHandler
                 if (empty)
                 {
                     lastUpdate = Environment.TickCount64;
+                    // Clear pause state when queue becomes empty
+                    if (IsOutagePaused)
+                    {
+                        IsOutagePaused = false;
+                        OutagePauseStartTime = 0;
+                        Logs.Info("[BackendHandler] Queue emptied, clearing outage pause state.");
+                    }
                 }
                 else if (Environment.TickCount64 - lastUpdate > Program.ServerSettings.Backends.MaxTimeoutMinutes * 60 * 1000)
                 {
-                    lastUpdate = Environment.TickCount64;
-                    Logs.Error($"[BackendHandler] {T2IBackendRequests.Count} requests denied due to backend timeout failure. Server backends are failing to respond.");
-                    foreach (T2IBackendRequest request in T2IBackendRequests.Values.ToArray())
+                    // Check if any backend is RUNNING, LOADING, or WAITING
+                    bool anyBackendCanProgress = T2IBackends.Values.Any(b => 
+                        b.Backend.Status == BackendStatus.RUNNING || 
+                        b.Backend.Status == BackendStatus.LOADING || 
+                        b.Backend.Status == BackendStatus.WAITING);
+                    
+                    if (Program.ServerSettings.Backends.PauseOnOutage && !anyBackendCanProgress)
                     {
-                        request.Failure = new TimeoutException($"No backend has responded in {Program.ServerSettings.Backends.MaxTimeoutMinutes} minutes.");
-                        anyMoved = true;
-                        request.CompletedEvent.Set();
+                        // Enter or maintain pause mode
+                        if (!IsOutagePaused)
+                        {
+                            IsOutagePaused = true;
+                            OutagePauseStartTime = Environment.TickCount64;
+                            Logs.Warning($"[BackendHandler] Entering outage pause mode for {T2IBackendRequests.Count} pending requests. Waiting for backends to recover.");
+                        }
+                        
+                        // Check if we've exceeded the pause TTL
+                        if (Program.ServerSettings.Backends.OutagePauseTTLMinutes > 0)
+                        {
+                            long pauseDuration = Environment.TickCount64 - OutagePauseStartTime;
+                            long maxPauseDuration = Program.ServerSettings.Backends.OutagePauseTTLMinutes * 60 * 1000;
+                            
+                            if (pauseDuration > maxPauseDuration)
+                            {
+                                // TTL exceeded, fail all requests
+                                IsOutagePaused = false;
+                                OutagePauseStartTime = 0;
+                                lastUpdate = Environment.TickCount64;
+                                Logs.Error($"[BackendHandler] Outage pause TTL of {Program.ServerSettings.Backends.OutagePauseTTLMinutes} minutes exceeded. Failing {T2IBackendRequests.Count} requests.");
+                                foreach (T2IBackendRequest request in T2IBackendRequests.Values.ToArray())
+                                {
+                                    request.Failure = new TimeoutException($"Backend outage exceeded maximum pause duration of {Program.ServerSettings.Backends.OutagePauseTTLMinutes} minutes.");
+                                    anyMoved = true;
+                                    request.CompletedEvent.Set();
+                                }
+                            }
+                        }
+                        // If paused and TTL not exceeded, don't update lastUpdate so we keep checking
+                    }
+                    else if (anyBackendCanProgress && IsOutagePaused)
+                    {
+                        // Backends are back, exit pause mode
+                        IsOutagePaused = false;
+                        OutagePauseStartTime = 0;
+                        lastUpdate = Environment.TickCount64;
+                        Logs.Info($"[BackendHandler] Backends recovered, exiting outage pause mode. Resuming {T2IBackendRequests.Count} pending requests.");
+                    }
+                    else if (!Program.ServerSettings.Backends.PauseOnOutage)
+                    {
+                        // Original behavior: fail all requests
+                        lastUpdate = Environment.TickCount64;
+                        Logs.Error($"[BackendHandler] {T2IBackendRequests.Count} requests denied due to backend timeout failure. Server backends are failing to respond.");
+                        foreach (T2IBackendRequest request in T2IBackendRequests.Values.ToArray())
+                        {
+                            request.Failure = new TimeoutException($"No backend has responded in {Program.ServerSettings.Backends.MaxTimeoutMinutes} minutes.");
+                            anyMoved = true;
+                            request.CompletedEvent.Set();
+                        }
                     }
                 }
                 mark("PostComplete");
