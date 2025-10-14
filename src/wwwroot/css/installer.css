@@ -180,6 +180,15 @@
     background-color: #acb0be;
     color: #4c4f69;
 }
+.theme_preview_ultradark {
+    background-color: #000000;
+    color: #b8b8b8;
+}
+.theme_preview_ultradark .button_example {
+    border: 1px solid #1a1a1a;
+    background-color: #1a1a1a;
+    color: #d0d0d0;
+}
 label {
     font-size: 120%;
     vertical-align: top;
