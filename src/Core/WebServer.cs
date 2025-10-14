@@ -1,4 +1,5 @@
 using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticToolkit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Html;
@@ -276,6 +277,7 @@ public class WebServer
         WebApp.MapGet("/ViewSpecial/{*Path}", ViewSpecial);
         WebApp.MapGet("/ExtensionFile/{*f}", ViewExtensionScript);
         WebApp.MapGet("/Audio/{*f}", ViewAudio);
+        WebApp.MapGet("/DownloadModel/{*Path}", DownloadModelFile);
         timer.Check("[Web] core maps");
         WebApp.Use(async (context, next) =>
         {
@@ -674,5 +676,120 @@ public class WebServer
             Logs.Verbose($"Not showing user '{user.UserID}' sub-type '{subtype}' model image '{name}': not found");
         }
         await context.YieldJsonOutput(null, 404, Utilities.ErrorObj("404, file not found.", "file_not_found"));
+    }
+
+    public async Task DownloadModelFile(HttpContext context)
+    {
+        string path = context.Request.Path.ToString();
+        path = Uri.UnescapeDataString(path).Replace('\\', '/').Trim('/');
+        while (path.Contains("//"))
+        {
+            path = path.Replace("//", "/");
+        }
+        // Path format: /DownloadModel/subtype/hash/filename or /DownloadModel/subtype/name/filename
+        string[] parts = path.After("DownloadModel/").Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+        {
+            await context.YieldJsonOutput(null, 400, Utilities.ErrorObj("Invalid request format.", "invalid_format"));
+            return;
+        }
+        string subtype = parts[0];
+        string identifier = parts[1]; // Could be hash or name
+        User user = GetUserFor(context);
+        if (user is null)
+        {
+            await context.YieldJsonOutput(null, 401, Utilities.ErrorObj("Invalid or unauthorized", "invalid_user"));
+            return;
+        }
+        if (!Program.T2IModelSets.TryGetValue(subtype, out T2IModelHandler handler))
+        {
+            await context.YieldJsonOutput(null, 404, Utilities.ErrorObj("Invalid model sub-type.", "invalid_subtype"));
+            return;
+        }
+        using ManyReadOneWriteLock.ReadClaim claim = Program.RefreshLock.LockRead();
+        T2IModel match = null;
+        // Try to find by name first
+        if (user.IsAllowedModel(identifier))
+        {
+            if (handler.Models.TryGetValue(identifier + ".safetensors", out T2IModel model))
+            {
+                match = model;
+            }
+            else if (handler.Models.TryGetValue(identifier, out model))
+            {
+                match = model;
+            }
+        }
+        // If not found by name, search by hash
+        if (match is null)
+        {
+            string normalizedHash = identifier.ToLowerFast();
+            foreach (T2IModel model in handler.Models.Values)
+            {
+                if (!user.IsAllowedModel(model.Name))
+                {
+                    continue;
+                }
+                string modelHash = model.GetOrGenerateTensorHashSha256();
+                if (modelHash.ToLowerFast() == normalizedHash)
+                {
+                    match = model;
+                    break;
+                }
+            }
+        }
+        if (match is null || !File.Exists(match.RawFilePath))
+        {
+            await context.YieldJsonOutput(null, 404, Utilities.ErrorObj("Model not found.", "model_not_found"));
+            return;
+        }
+        // Support range requests for resumable downloads
+        FileInfo fileInfo = new(match.RawFilePath);
+        long startByte = 0;
+        long endByte = fileInfo.Length - 1;
+        bool isRangeRequest = false;
+        if (context.Request.Headers.TryGetValue("Range", out StringValues rangeHeader))
+        {
+            string rangeValue = rangeHeader.ToString();
+            if (rangeValue.StartsWith("bytes="))
+            {
+                string range = rangeValue["bytes=".Length..];
+                string[] rangeParts = range.Split('-');
+                if (rangeParts.Length == 2)
+                {
+                    if (long.TryParse(rangeParts[0], out long start))
+                    {
+                        startByte = start;
+                        isRangeRequest = true;
+                    }
+                    if (!string.IsNullOrWhiteSpace(rangeParts[1]) && long.TryParse(rangeParts[1], out long end))
+                    {
+                        endByte = end;
+                    }
+                }
+            }
+        }
+        long contentLength = endByte - startByte + 1;
+        context.Response.ContentType = "application/octet-stream";
+        context.Response.Headers.ContentDisposition = $"attachment; filename=\"{Path.GetFileName(match.RawFilePath)}\"";
+        context.Response.Headers.AcceptRanges = "bytes";
+        context.Response.Headers["X-Model-SHA256"] = match.GetOrGenerateTensorHashSha256();
+        if (isRangeRequest)
+        {
+            context.Response.StatusCode = 206; // Partial Content
+            context.Response.Headers.ContentRange = $"bytes {startByte}-{endByte}/{fileInfo.Length}";
+        }
+        else
+        {
+            context.Response.StatusCode = 200;
+        }
+        context.Response.ContentLength = contentLength;
+        using FileStream fs = new(match.RawFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (startByte > 0)
+        {
+            fs.Seek(startByte, SeekOrigin.Begin);
+        }
+        await fs.CopyToAsync(context.Response.Body, 81920, Program.GlobalProgramCancel);
+        await context.Response.CompleteAsync();
     }
 }

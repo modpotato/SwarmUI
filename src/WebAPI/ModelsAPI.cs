@@ -33,6 +33,7 @@ public static class ModelsAPI
         API.RegisterAPICall(ForwardMetadataRequest, false, Permissions.EditModelMetadata);
         API.RegisterAPICall(DeleteModel, false, Permissions.DeleteModels);
         API.RegisterAPICall(RenameModel, false, Permissions.DeleteModels);
+        API.RegisterAPICall(GetModelManifest, false, Permissions.FundamentalModelAccess);
     }
 
     /// <summary>Map of unique registration IDs to extra model provider functions.</summary>
@@ -887,5 +888,90 @@ public static class ModelsAPI
         }
         Interlocked.Increment(ref ModelEditID);
         return new JObject() { ["success"] = true };
+    }
+
+    [API.APIDescription("Returns a manifest of available models with their hashes and metadata for remote transfer.",
+        """
+            "node_id": "swarmui-instance-01",
+            "generated_at": "2025-10-14T03:15:13Z",
+            "models": [
+                {
+                    "name": "model/path/name.safetensors",
+                    "title": "Model Title",
+                    "filename": "name.safetensors",
+                    "size": 7423912345,
+                    "sha256": "abc123...",
+                    "architecture": "stable-diffusion-xl-v1-base",
+                    "description": "Model description",
+                    "preview_image": "data:image/jpg;base64,...",
+                    "download_url": "/DownloadModel/Stable-Diffusion/abc123.../name.safetensors",
+                    "metadata": { ... }
+                }
+            ]
+        """
+        )]
+    public static async Task<JObject> GetModelManifest(Session session,
+        [API.APIParameter("What model sub-type to use, can be eg `LoRA` or `Stable-Diffusion` or etc.")] string subtype = "Stable-Diffusion",
+        [API.APIParameter("Whether to include full preview images in the manifest.")] bool includeImages = false)
+    {
+        if (!Program.T2IModelSets.TryGetValue(subtype, out T2IModelHandler handler))
+        {
+            return new JObject() { ["error"] = "Invalid sub-type." };
+        }
+        using ManyReadOneWriteLock.ReadClaim claim = Program.RefreshLock.LockRead();
+        List<JObject> models = [];
+        foreach (T2IModel model in handler.Models.Values)
+        {
+            if (!session.User.IsAllowedModel(model.Name))
+            {
+                continue;
+            }
+            if (!File.Exists(model.RawFilePath))
+            {
+                continue;
+            }
+            FileInfo fileInfo = new(model.RawFilePath);
+            string hash = model.GetOrGenerateTensorHashSha256();
+            string encodedName = Uri.EscapeDataString(model.Name);
+            JObject modelData = new()
+            {
+                ["name"] = model.Name,
+                ["title"] = model.Title ?? model.Name.AfterLast('/'),
+                ["filename"] = Path.GetFileName(model.RawFilePath),
+                ["size"] = fileInfo.Length,
+                ["sha256"] = hash,
+                ["architecture"] = model.ModelClass?.ID ?? "unknown",
+                ["description"] = model.Description ?? "",
+                ["standard_width"] = model.StandardWidth,
+                ["standard_height"] = model.StandardHeight,
+                ["download_url"] = $"/DownloadModel/{subtype}/{hash}/{Path.GetFileName(model.RawFilePath)}"
+            };
+            if (includeImages && !string.IsNullOrWhiteSpace(model.PreviewImage) && model.PreviewImage.StartsWith("data:"))
+            {
+                modelData["preview_image"] = model.PreviewImage;
+            }
+            if (model.Metadata is not null)
+            {
+                JObject metadata = new();
+                if (!string.IsNullOrWhiteSpace(model.Metadata.Author)) metadata["author"] = model.Metadata.Author;
+                if (!string.IsNullOrWhiteSpace(model.Metadata.License)) metadata["license"] = model.Metadata.License;
+                if (!string.IsNullOrWhiteSpace(model.Metadata.Date)) metadata["date"] = model.Metadata.Date;
+                if (!string.IsNullOrWhiteSpace(model.Metadata.UsageHint)) metadata["usage_hint"] = model.Metadata.UsageHint;
+                if (!string.IsNullOrWhiteSpace(model.Metadata.TriggerPhrase)) metadata["trigger_phrase"] = model.Metadata.TriggerPhrase;
+                if (model.Metadata.Tags is not null && model.Metadata.Tags.Length > 0) metadata["tags"] = JArray.FromObject(model.Metadata.Tags);
+                if (metadata.Count > 0)
+                {
+                    modelData["metadata"] = metadata;
+                }
+            }
+            models.Add(modelData);
+        }
+        return new JObject()
+        {
+            ["node_id"] = $"swarmui-{Environment.MachineName}",
+            ["generated_at"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ["subtype"] = subtype,
+            ["models"] = JArray.FromObject(models)
+        };
     }
 }
