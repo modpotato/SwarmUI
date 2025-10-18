@@ -107,6 +107,12 @@ class GenTabLayout {
 
     /** Layout to use as mobile/desktop/auto. */
     mobileDesktopLayout = localStorage.getItem('layout_mobileDesktop') || 'auto';
+    
+    /** Track previous window size for smooth transitions */
+    previousWindowWidth = window.innerWidth;
+    
+    /** Debounce timer for resize events */
+    resizeDebounceTimer = null;
 
     constructor() {
         this.leftSplitBar = getRequiredElementById('t2i-top-split-bar');
@@ -195,7 +201,11 @@ class GenTabLayout {
     
     /** Does the full position update logic. */
     reapplyPositions() {
+        // Determine if window is small based on layout setting
+        let wasSmallWindow = this.isSmallWindow;
         this.isSmallWindow = this.mobileDesktopLayout == 'auto' ? window.innerWidth < 768 : this.mobileDesktopLayout == 'mobile';
+        
+        // Apply appropriate body classes for CSS targeting
         if (this.isSmallWindow) {
             document.body.classList.add('small-window');
             document.body.classList.remove('large-window');
@@ -203,6 +213,15 @@ class GenTabLayout {
         else {
             document.body.classList.remove('small-window');
             document.body.classList.add('large-window');
+        }
+        
+        // Handle transition from desktop to mobile
+        if (!wasSmallWindow && this.isSmallWindow) {
+            this.onTransitionToMobile();
+        }
+        // Handle transition from mobile to desktop
+        else if (wasSmallWindow && !this.isSmallWindow) {
+            this.onTransitionToDesktop();
         }
         fixTabHeights();
         tweakNegativePromptBox();
@@ -300,6 +319,32 @@ class GenTabLayout {
             container.style.height = `calc(100% - ${offset}px)`;
         }
         browserUtil.makeVisible(document);
+    }
+
+    /** Handles transition from desktop to mobile mode */
+    onTransitionToMobile() {
+        // Ensure sidebars are closed for mobile
+        this.bottomShut = true;
+        this.leftShut = true;
+        this.rightSectionBarPos = 0;
+        
+        // Save mobile-friendly defaults
+        localStorage.setItem('barspot_midForceToBottom', 'true');
+        localStorage.setItem('barspot_leftShut', 'true');
+    }
+
+    /** Handles transition from mobile to desktop mode */
+    onTransitionToDesktop() {
+        // Restore reasonable defaults for desktop if everything was closed
+        if (this.leftShut && this.rightSectionBarPos <= 0 && this.bottomShut) {
+            this.leftShut = false;
+            this.bottomShut = false;
+            this.leftSectionBarPos = Math.max(this.leftSectionBarPos, 400);
+            this.rightSectionBarPos = Math.max(this.rightSectionBarPos, 300);
+            
+            localStorage.setItem('barspot_midForceToBottom', 'false');
+            localStorage.setItem('barspot_leftShut', 'false');
+        }
     }
 
     /** Internal initialization of the generate tab. */
@@ -438,7 +483,7 @@ class GenTabLayout {
             this.imageEditorSizeBarDrag = false;
         });
         document.addEventListener('touchstart', (e) => {
-            if (e.touches.length == 1 && !['BUTTON', 'INPUT'].includes(e.target.tagName) && !findParentOfClass(e.target, 'model-block')) {
+            if (e.touches.length == 1 && !['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !findParentOfClass(e.target, 'model-block')) {
                 this.swipeStartX = e.touches.item(0).pageX;
                 this.swipeStartY = e.touches.item(0).pageY;
             }
@@ -571,9 +616,56 @@ class GenTabLayout {
         new ResizeObserver(this.altPromptSizeHandle.bind(this)).observe(this.altNegText);
         textPromptAddKeydownHandler(this.altText);
         textPromptAddKeydownHandler(this.altNegText);
-        addEventListener("resize", this.reapplyPositions.bind(this));
+        
+        // Debounced resize handler for better performance
+        addEventListener("resize", () => {
+            if (this.resizeDebounceTimer) {
+                clearTimeout(this.resizeDebounceTimer);
+            }
+            this.resizeDebounceTimer = setTimeout(() => {
+                this.handleResize();
+            }, 150);
+        });
+        
         textPromptAddKeydownHandler(getRequiredElementById('edit_wildcard_contents'));
         this.buildConfigArea();
+    }
+
+    /** Handles window resize with mobile/desktop detection */
+    handleResize() {
+        let currentWidth = window.innerWidth;
+        let wasSmall = this.previousWindowWidth < 768;
+        let isSmall = currentWidth < 768;
+        
+        // Only trigger full reapply if crossing the mobile threshold
+        if (wasSmall !== isSmall && this.mobileDesktopLayout === 'auto') {
+            this.reapplyPositions();
+        } else {
+            // Otherwise just update positions without mode transition
+            this.reapplyPositions();
+        }
+        
+        this.previousWindowWidth = currentWidth;
+    }
+
+    /** Check if device is likely a touch device */
+    isTouchDevice() {
+        return ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0) || 
+               (navigator.msMaxTouchPoints > 0);
+    }
+
+    /** Get current mobile mode status */
+    getMobileStatus() {
+        return {
+            isSmallWindow: this.isSmallWindow,
+            isTouchDevice: this.isTouchDevice(),
+            layoutMode: this.mobileDesktopLayout,
+            windowWidth: window.innerWidth,
+            leftShut: this.leftShut,
+            rightShut: this.rightSectionBarPos <= 0,
+            bottomShut: this.bottomShut
+        };
     }
 
     rebuildVisibleCookie() {
@@ -625,6 +717,26 @@ class GenTabLayout {
     onMobileDesktopLayoutChange() {
         this.mobileDesktopLayout = getRequiredElementById('mobile_desktop_layout_selector').value;
         localStorage.setItem('layout_mobileDesktop', this.mobileDesktopLayout);
+        
+        // Store the current small window state before change
+        let wasSmallWindow = this.isSmallWindow;
+        
+        // Update isSmallWindow based on new layout setting
+        let willBeSmallWindow = this.mobileDesktopLayout == 'auto' ? window.innerWidth < 768 : this.mobileDesktopLayout == 'mobile';
+        
+        // If switching modes, provide user feedback
+        if (wasSmallWindow !== willBeSmallWindow) {
+            // Add a brief visual indicator
+            document.body.style.transition = 'opacity 0.2s ease-in-out';
+            document.body.style.opacity = '0.95';
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+                setTimeout(() => {
+                    document.body.style.transition = '';
+                }, 200);
+            }, 100);
+        }
+        
         this.reapplyPositions();
     }
 }
