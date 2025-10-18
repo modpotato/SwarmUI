@@ -1796,6 +1796,33 @@ body {
     opacity: 0.5;
 }
 
+/* Visual indicator for swipeable edges */
+.small-window body::before {
+    content: '';
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100vh;
+    background: linear-gradient(to right, var(--emphasis), transparent);
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.small-window body::after {
+    content: '';
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 4px;
+    height: 100vh;
+    background: linear-gradient(to left, var(--emphasis), transparent);
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 1;
+}
+
 /* Improve scrolling on mobile */
 .small-window .main_inputs_area_wrapper,
 .small-window .current_image,

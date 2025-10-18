@@ -4,6 +4,7 @@
 - [Why Use Swarm](/docs/Why%20Use%20Swarm.md) to see what advanced Swarm offers you
 - [Advanced Usage](/docs/Advanced%20Usage.md) for various advanced usage topics (use from external device, comfy workflows, ...)
 - [Features](/docs/Features/README.md) for a sub-listing of various specific Swarm features and how to use them.
+- [Mobile UI Guide](/docs/Mobile_UI_Guide.md) for comprehensive information about mobile support, responsive design, and touch interactions.
 - [Docker](/docs/Docker.md) for using SwarmUI inside a Docker container.
 - [Using More GPUs](/docs/Using%20More%20GPUs.md) for more info about splitting generations between multiple GPUs.
 - [Sharing Your Swarm](/docs/Sharing%20Your%20Swarm.md) for info about sharing your SwarmUI instance with others.

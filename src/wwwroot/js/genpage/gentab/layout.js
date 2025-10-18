@@ -648,6 +648,26 @@ class GenTabLayout {
         this.previousWindowWidth = currentWidth;
     }
 
+    /** Check if device is likely a touch device */
+    isTouchDevice() {
+        return ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0) || 
+               (navigator.msMaxTouchPoints > 0);
+    }
+
+    /** Get current mobile mode status */
+    getMobileStatus() {
+        return {
+            isSmallWindow: this.isSmallWindow,
+            isTouchDevice: this.isTouchDevice(),
+            layoutMode: this.mobileDesktopLayout,
+            windowWidth: window.innerWidth,
+            leftShut: this.leftShut,
+            rightShut: this.rightSectionBarPos <= 0,
+            bottomShut: this.bottomShut
+        };
+    }
+
     rebuildVisibleCookie() {
         setCookie('layout_hidetabs', this.managedTabs.filter(t => !t.visible).map(t => t.id).join(','), 365);
     }
