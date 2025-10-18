@@ -231,6 +231,98 @@ The modal is designed to work across different screen sizes:
 - Tablet: Stacked layout with full-width inputs
 - Mobile: Single-column layout with scrollable content
 
+### Mobile Layout (< 768px)
+
+```
+┌───────────────────────┐
+│ Prompt LLM        [×] │
+├───────────────────────┤
+│ [Refine][Generate]    │
+│ [Blend]               │
+├───────────────────────┤
+│                       │
+│ Model:                │
+│ ┌─────────────────┐   │
+│ │ Claude 3.5   ▼ │   │
+│ └─────────────────┘   │
+│                       │
+│ Instructions:         │
+│ ┌─────────────────┐   │
+│ │ (optional)      │   │
+│ └─────────────────┘   │
+│                       │
+│ ☐ Bypass Vision      │
+│                       │
+│ Source: Prompt        │
+│                       │
+│ Original:             │
+│ ┌─────────────────┐   │
+│ │ cat on table    │   │
+│ └─────────────────┘   │
+│                       │
+│ [Execute]             │
+│                       │
+│ ⏳ Processing...      │
+│                       │
+│ (Scroll for results)  │
+│                       │
+│ Refined:              │
+│ ┌─────────────────┐   │
+│ │ adorable cat... │   │
+│ └─────────────────┘   │
+│                       │
+│ Changes:              │
+│ +10 -2 words         │
+│                       │
+│ [Apply] [Close]       │
+└───────────────────────┘
+```
+
+### Tablet Layout (768px - 1024px)
+
+```
+┌────────────────────────────────────┐
+│ Prompt LLM                     [×] │
+├────────────────────────────────────┤
+│ ┌────┬────────┬────────┐          │
+│ │Ref.│Generate│ Blend  │          │
+│ └────┴────────┴────────┘          │
+├────────────────────────────────────┤
+│                                    │
+│ Model:                             │
+│ ┌──────────────────────────────┐   │
+│ │ Recommended              ▼  │   │
+│ └──────────────────────────────┘   │
+│                                    │
+│ Instructions: (optional)           │
+│ ┌──────────────────────────────┐   │
+│ │                              │   │
+│ └──────────────────────────────┘   │
+│                                    │
+│ ☐ Bypass Vision                   │
+│                                    │
+│ Source: Current Prompt Text        │
+│                                    │
+│ Original:                          │
+│ ┌──────────────────────────────┐   │
+│ │ cat sitting on table         │   │
+│ └──────────────────────────────┘   │
+│                                    │
+│ [Execute]                          │
+│                                    │
+│ Refined:                           │
+│ ┌──────────────────────────────┐   │
+│ │ adorable domestic cat...     │   │
+│ └──────────────────────────────┘   │
+│                                    │
+│ Changes:                           │
+│ REMOVED: (none)                    │
+│ ADDED: [adorable][domestic]...    │
+│                                    │
+│ [Apply] [Close]                    │
+└────────────────────────────────────┘
+```
+
 ## Keyboard Shortcuts (Future Enhancement)
 
 Potential shortcuts for power users:

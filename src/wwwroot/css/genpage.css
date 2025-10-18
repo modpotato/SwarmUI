@@ -1429,9 +1429,55 @@ body {
     vertical-align: top;
     text-align: left;
 }
+/* ===== Mobile Responsive Styles ===== */
 @media screen and (max-width:768px) {
     .input-sidebar {
         width: calc(16rem - 5px);
+    }
+    
+    /* Optimize buttons for touch */
+    .basic-button, .interrupt-button, .generate-button {
+        min-height: 2.75rem;
+        min-width: 2.75rem;
+    }
+    
+    /* Improve modal sizing on mobile */
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100vw - 1rem);
+    }
+    
+    /* Better spacing for parameter inputs */
+    .auto-input {
+        padding: 0.5rem;
+    }
+    
+    /* Optimize nav tabs for mobile */
+    .nav-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Tablet optimizations */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    .input-sidebar {
+        width: calc(24rem - 5px);
+    }
+    
+    .current_image_batch {
+        width: calc(18rem - 6px);
+    }
+}
+
+/* Large screen optimizations */
+@media screen and (min-width: 1920px) {
+    .input-sidebar {
+        width: calc(32rem - 5px);
+    }
+    
+    .current_image_batch {
+        width: calc(26rem - 6px);
     }
 }
 .auto-symbol {
@@ -1648,4 +1694,163 @@ body {
     font-size: 90%;
     height: 1lh;
     padding-top: 0 !important;
+}
+
+/* ===== Enhanced Mobile UI Styles ===== */
+
+/* Mobile-specific improvements for small screens */
+.small-window .modal-dialog {
+    max-width: 95vw;
+    margin: 0.5rem auto;
+}
+
+.small-window .modal-header,
+.small-window .modal-footer {
+    padding: 0.75rem;
+}
+
+.small-window .modal-body {
+    padding: 1rem 0.75rem;
+}
+
+/* Better touch targets for mobile */
+.small-window .basic-button,
+.small-window .interrupt-button,
+.small-window button {
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+}
+
+/* Improve dropdown visibility on mobile */
+.small-window select.form-control {
+    font-size: 1rem;
+    padding: 0.5rem;
+    min-height: 2.75rem;
+}
+
+/* Better spacing for form inputs */
+.small-window .form-control,
+.small-window .auto-input,
+.small-window textarea {
+    font-size: 1rem;
+    padding: 0.5rem;
+}
+
+/* Optimize image batch for mobile */
+.small-window .current_image_batch_core {
+    padding: 0.25rem;
+}
+
+.small-window .batch-grid-image {
+    margin: 0.25rem;
+}
+
+/* Improve prompt box usability on mobile */
+.small-window .alt_prompt_textbox {
+    font-size: 1rem;
+    line-height: 1.5;
+    min-height: 3rem;
+}
+
+/* Better parameter group visibility */
+.small-window .param-group-header {
+    font-size: 1.1rem;
+    padding: 0.75rem 0.5rem;
+}
+
+/* Optimize advanced checkbox for mobile */
+.small-window .advanced_input_checkbox {
+    font-size: 1rem;
+    padding: 0.75rem;
+}
+
+/* Improve welcome message on mobile */
+.small-window .welcome_message {
+    font-size: 1.2rem;
+    padding: 2rem 1rem;
+    text-align: center;
+}
+
+/* Better visibility for token count on mobile */
+.small-window .alt-text-tokencount {
+    font-size: 0.9rem;
+}
+
+/* Smooth transitions for mobile mode switching */
+.input-sidebar,
+.main-image-area,
+.current_image_batch,
+.current_image_wrapbox {
+    transition: width 0.3s ease-in-out, height 0.3s ease-in-out;
+}
+
+/* Better swipe indicator visibility */
+.small-window .t2i-mid-split-bar::before {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 4px;
+    background-color: var(--emphasis);
+    border-radius: 2px;
+    margin: 0 auto;
+    opacity: 0.5;
+}
+
+/* Improve scrolling on mobile */
+.small-window .main_inputs_area_wrapper,
+.small-window .current_image,
+.small-window .tab-content {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+/* Better focus indicators for accessibility */
+.small-window button:focus,
+.small-window input:focus,
+.small-window select:focus,
+.small-window textarea:focus {
+    outline: 2px solid var(--emphasis);
+    outline-offset: 2px;
+}
+
+/* Optimize navigation tabs for mobile */
+.small-window .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+}
+
+.small-window .nav-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+.small-window .nav-tabs .nav-link {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Improve batch gear button on mobile */
+.small-window .batch-gear-button {
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+}
+
+/* Better popover positioning on mobile */
+.small-window .sui-popover {
+    max-width: 90vw;
+    left: 5vw !important;
+}
+
+/* Improve checkbox and switch visibility */
+.small-window .form-check-input {
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+}
+
+.small-window .form-check-label {
+    padding-left: 0.5rem;
+    font-size: 0.95rem;
 }
