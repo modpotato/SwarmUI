@@ -486,14 +486,15 @@ public static class T2IAPI
 
     public enum ImageHistorySortMode { Name, Date }
 
-    private static JObject GetListAPIInternal(Session session, string path, string root, HashSet<string> extensions, Func<string, bool> isAllowed, int depth, ImageHistorySortMode sortBy, bool sortReverse)
+    private static JObject GetListAPIInternal(Session session, string rawPath, string root, HashSet<string> extensions, Func<string, bool> isAllowed, int depth, ImageHistorySortMode sortBy, bool sortReverse)
     {
         int maxInHistory = session.User.Settings.MaxImagesInHistory;
         int maxScanned = session.User.Settings.MaxImagesScannedInHistory;
-        Logs.Verbose($"User {session.User.UserID} wants to list images in '{path}', maxDepth={depth}, sortBy={sortBy}, reverse={sortReverse}, maxInHistory={maxInHistory}, maxScanned={maxScanned}");
+        Logs.Verbose($"User {session.User.UserID} wants to list images in '{rawPath}', maxDepth={depth}, sortBy={sortBy}, reverse={sortReverse}, maxInHistory={maxInHistory}, maxScanned={maxScanned}");
         long timeStart = Environment.TickCount64;
         int limit = sortBy == ImageHistorySortMode.Name ? maxInHistory : Math.Max(maxInHistory, maxScanned);
-        (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
+        (string path, string consoleError, string userError) = WebServer.CheckFilePath(root, rawPath);
+        path = UserImageHistoryHelper.GetRealPathFor(session.User, path, root: root);
         if (consoleError is not null)
         {
             Logs.Error(consoleError);
@@ -501,14 +502,6 @@ public static class T2IAPI
         }
         try
         {
-            if (!Directory.Exists(path))
-            {
-                return new JObject()
-                {
-                    ["folders"] = new JArray(),
-                    ["files"] = new JArray()
-                };
-            }
             ConcurrentDictionary<string, string> dirsConc = [];
             ConcurrentDictionary<string, string> finalDirs = [];
             ConcurrentDictionary<string, Task> tasks = [];
@@ -516,13 +509,23 @@ public static class T2IAPI
             {
                 tasks.TryAdd(dir, Utilities.RunCheckedTask(() =>
                 {
+                    if (dir.EndsWith('/'))
+                    {
+                        dir = dir[..^1];
+                    }
                     if (dir != "")
                     {
                         (subDepth == 0 ? finalDirs : dirsConc).TryAdd(dir, dir);
                     }
                     if (subDepth > 0)
                     {
-                        IEnumerable<string> subDirs = Directory.EnumerateDirectories($"{path}/{dir}").Select(Path.GetFileName).OrderDescending();
+                        string actualPath = $"{path}/{dir}";
+                        actualPath = UserImageHistoryHelper.GetRealPathFor(session.User, actualPath, root: root);
+                        if (!Directory.Exists(actualPath))
+                        {
+                            return;
+                        }
+                        IEnumerable<string> subDirs = Directory.EnumerateDirectories(actualPath).Select(Path.GetFileName).OrderDescending();
                         foreach (string subDir in subDirs)
                         {
                             string subPath = dir == "" ? subDir : $"{dir}/{subDir}";
@@ -535,6 +538,22 @@ public static class T2IAPI
                 }, "t2i getlist add dir"));
             }
             addDirs("", depth);
+            string rawRefPath = Path.GetRelativePath(root, path).Replace('\\', '/');
+            if (!rawRefPath.EndsWith('/'))
+            {
+                rawRefPath += '/';
+            }
+            if (rawRefPath == "./")
+            {
+                rawRefPath = "";
+            }
+            foreach (string specialFolder in UserImageHistoryHelper.SharedSpecialFolders.Keys)
+            {
+                if (specialFolder.StartsWith(rawRefPath))
+                {
+                    addDirs(specialFolder[rawRefPath.Length..], 1);
+                }
+            }
             while (tasks.Any(t => !t.Value.IsCompleted))
             {
                 Task.WaitAll([.. tasks.Values]);
@@ -572,7 +591,13 @@ public static class T2IAPI
                     return;
                 }
                 string prefix = folder == "" ? "" : folder + "/";
-                List<string> subFiles = [.. Directory.EnumerateFiles($"{path}/{prefix}").Take(localLimit)];
+                string actualPath = $"{path}/{prefix}";
+                actualPath = UserImageHistoryHelper.GetRealPathFor(session.User, actualPath, root: root);
+                if (!Directory.Exists(actualPath))
+                {
+                    return;
+                }
+                List<string> subFiles = [.. Directory.EnumerateFiles(actualPath).Take(localLimit)];
                 IEnumerable<string> newFileNames = subFiles.Where(isAllowed).Where(f => extensions.Contains(f.AfterLast('.')) && !f.EndsWith(".swarmpreview.jpg") && !f.EndsWith(".swarmpreview.webp")).Select(f => f.Replace('\\', '/'));
                 List<ImageHistoryHelper> localFiles = [.. newFileNames.Select(f => new ImageHistoryHelper(prefix + f.AfterLast('/'), ImageMetadataTracker.GetMetadataFor(f, root, starNoFolders))).Where(f => f.Metadata is not null)];
                 int leftOver = Interlocked.Add(ref remaining, -localFiles.Count);
@@ -622,6 +647,31 @@ public static class T2IAPI
 
     public record struct ImageHistoryHelper(string Name, ImageMetadataTracker.ImageMetadataEntry Metadata);
 
+    [API.APIDescription("Gets a list of images in a saved image history folder.",
+        """
+            "folders": ["Folder1", "Folder2"],
+            "files":
+            [
+                {
+                    "src": "path/to/image.jpg",
+                    "metadata": "some-metadata" // usually a JSON blob encoded as a string. Not guaranteed.
+                }
+            ]
+        """)]
+    public static async Task<JObject> ListImages(Session session,
+        [API.APIParameter("The folder path to start the listing in. Use an empty string for root.")] string path,
+        [API.APIParameter("Maximum depth (number of recursive folders) to search.")] int depth,
+        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sortBy = "Name",
+        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sortReverse = false)
+    {
+        if (!Enum.TryParse(sortBy, true, out ImageHistorySortMode sortMode))
+        {
+            return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
+        }
+        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        return GetListAPIInternal(session, path, root, ImageExtensions, f => true, depth, sortMode, sortReverse);
+    }
+
     [API.APIDescription("Open an image folder in the file explorer. Used for local users directly.", "\"success\": true")]
     public static async Task<JObject> OpenImageFolder(Session session,
         [API.APIParameter("The path to the image to show in the image folder.")] string path)
@@ -634,6 +684,7 @@ public static class T2IAPI
             Logs.Error(consoleError);
             return new JObject() { ["error"] = userError };
         }
+        path = UserImageHistoryHelper.GetRealPathFor(session.User, path, root: root);
         if (!File.Exists(path))
         {
             Logs.Warning($"User {session.User.UserID} tried to open image path '{origPath}' which maps to '{path}', but cannot as the image does not exist.");
@@ -673,6 +724,7 @@ public static class T2IAPI
             Logs.Error(consoleError);
             return new JObject() { ["error"] = userError };
         }
+        path = UserImageHistoryHelper.GetRealPathFor(session.User, path, root: root);
         if (!File.Exists(path))
         {
             Logs.Warning($"User {session.User.UserID} tried to delete image path '{origPath}' which maps to '{path}', but cannot as the image does not exist.");
@@ -695,38 +747,15 @@ public static class T2IAPI
         return new JObject() { ["success"] = true };
     }
 
-    [API.APIDescription("Gets a list of images in a saved image history folder.",
-        """
-            "folders": ["Folder1", "Folder2"],
-            "files":
-            [
-                {
-                    "src": "path/to/image.jpg",
-                    "metadata": "some-metadata" // usually a JSON blob encoded as a string. Not guaranteed.
-                }
-            ]
-        """)]
-    public static async Task<JObject> ListImages(Session session,
-        [API.APIParameter("The folder path to start the listing in. Use an empty string for root.")] string path,
-        [API.APIParameter("Maximum depth (number of recursive folders) to search.")] int depth,
-        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sortBy = "Name",
-        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sortReverse = false)
-    {
-        if (!Enum.TryParse(sortBy, true, out ImageHistorySortMode sortMode))
-        {
-            return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
-        }
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
-        return GetListAPIInternal(session, path, root, ImageExtensions, f => true, depth, sortMode, sortReverse);
-    }
-
     [API.APIDescription("Toggle whether an image is starred or not.", "\"new_state\": true")]
     public static async Task<JObject> ToggleImageStarred(Session session,
         [API.APIParameter("The path to the image to star.")] string path)
     {
+        bool wasStar = false;
         path = path.Replace('\\', '/').Trim('/');
         if (path.StartsWith("Starred/"))
         {
+            wasStar = true;
             path = path["Starred/".Length..];
         }
         string origPath = path;
@@ -737,17 +766,36 @@ public static class T2IAPI
             Logs.Error(consoleError);
             return new JObject() { ["error"] = userError };
         }
-        if (!File.Exists(path))
-        {
-            Logs.Warning($"User {session.User.UserID} tried to star image path '{origPath}' which maps to '{path}', but cannot as the image does not exist.");
-            return new JObject() { ["error"] = "That file does not exist, cannot star." };
-        }
+        path = UserImageHistoryHelper.GetRealPathFor(session.User, path, root: root);
         string pathBeforeDot = path.BeforeLast('.');
         string starPath = $"Starred/{(session.User.Settings.StarNoFolders ? origPath.Replace("/", "") : origPath)}";
         (starPath, _, _) = WebServer.CheckFilePath(root, starPath);
+        starPath = UserImageHistoryHelper.GetRealPathFor(session.User, starPath, root: root);
         string starBeforeDot = starPath.BeforeLast('.');
+        if (!File.Exists(path))
+        {
+            if (wasStar && File.Exists(starPath))
+            {
+                Logs.Debug($"User {session.User.UserID} un-starred '{path}' without a raw, moving back to raw");
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.Move(starPath, path);
+                foreach (string ext in DeletableFileExtensions)
+                {
+                    if (File.Exists($"{starBeforeDot}{ext}"))
+                    {
+                        File.Move($"{starBeforeDot}{ext}", $"{pathBeforeDot}{ext}");
+                    }
+                }
+                ImageMetadataTracker.RemoveMetadataFor(path);
+                ImageMetadataTracker.RemoveMetadataFor(starPath);
+                return new JObject() { ["new_state"] = false };
+            }
+            Logs.Warning($"User {session.User.UserID} tried to star image path '{origPath}' which maps to '{path}', but cannot as the image does not exist.");
+            return new JObject() { ["error"] = "That file does not exist, cannot star." };
+        }
         if (File.Exists(starPath))
         {
+            Logs.Debug($"User {session.User.UserID} un-starred '{path}'");
             File.Delete(starPath);
             foreach (string ext in DeletableFileExtensions)
             {
@@ -762,6 +810,7 @@ public static class T2IAPI
         }
         else
         {
+            Logs.Debug($"User {session.User.UserID} starred '{path}'");
             Directory.CreateDirectory(Path.GetDirectoryName(starPath));
             File.Copy(path, starPath);
             foreach (string ext in DeletableFileExtensions)
