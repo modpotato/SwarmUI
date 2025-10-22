@@ -48,24 +48,35 @@ class PromptLLM {
      */
     async fetchLoraMetadata() {
         try {
-            // Get available LoRAs from the backend
+            // Try the new dedicated LoRA metadata endpoint first
+            let resp = await new Promise((resolve, reject) => {
+                genericRequest('GetLoraMetadata', {}, resolve, 0, reject);
+            });
+            if (resp && resp.loras) {
+                this.loraMetadata = [];
+                for (let item of resp.loras) {
+                    this.loraMetadata.push({
+                        name: item.id || item.title,
+                        triggerWords: item.triggerPhrase || null,
+                        description: item.description || null,
+                        preview: item.preview || null,
+                        tags: item.tags || null
+                    });
+                }
+                return;
+            }
+
+            // Fallback: fall back to parameter listing
             let data = await new Promise((resolve, reject) => {
                 genericRequest('ListT2IParams', {}, resolve, 0, reject);
             });
             
             if (data && data.list) {
-                // Find LoRA parameters
                 let loraParam = data.list.find(p => p.id === 'loras');
                 if (loraParam && loraParam.values) {
                     this.loraMetadata = [];
                     for (let lora of loraParam.values) {
-                        let metadata = {
-                            name: lora,
-                            triggerWords: null
-                        };
-                        // Try to fetch trigger words for this LoRA if available
-                        // This would require a backend API to expose LoRA metadata
-                        this.loraMetadata.push(metadata);
+                        this.loraMetadata.push({ name: lora, triggerWords: null, description: null });
                     }
                 }
             }
@@ -541,6 +552,25 @@ class PromptLLM {
         // Fetch LoRA metadata if not already loaded
         if (!this.loraMetadata) {
             this.fetchLoraMetadata();
+        }
+
+        // Inject LoRA descriptions toggle UI if not present
+        try {
+            const loraToggleId = 'llm_refine_include_lora_desc';
+            if (!document.getElementById(loraToggleId)) {
+                const container = document.getElementById('llm_refine_controls_container') || document.getElementById('llm_refine_modal_body') || document.body;
+                const wrapper = document.createElement('div');
+                wrapper.style.marginTop = '8px';
+                wrapper.innerHTML = `\
+                    <label style="font-size:0.9em; display:flex; align-items:center; gap:8px;">\
+                        <input type="checkbox" id="${loraToggleId}">\
+                        <span>Include LoRA descriptions in system prompt (costs tokens)</span>\
+                    </label>\
+                `;
+                container.prepend(wrapper);
+            }
+        } catch (e) {
+            console.warn('Failed to inject LoRA description toggle UI:', e);
         }
 
         // Update display
@@ -1431,17 +1461,60 @@ class PromptLLM {
 7. Organize tags logically: subject → setting → style → quality
 8. Use commas to separate tags for optimal parsing`;
 
+        // Helpers for LoRA block construction
+        const truncate = (s, max) => s && s.length > max ? s.slice(0, max - 1) + '…' : s;
+        const buildLoRABlock = (loras, includeDescriptions) => {
+            if (!loras || loras.length === 0) return '';
+            const MAX_LORAS = 5; // include at most 5 LoRAs by default
+            const MAX_DESC = 150; // max chars per description
+            const MAX_BLOCK = 2000; // max total chars for the block
+
+            let selected = loras.slice(0, MAX_LORAS);
+            let parts = selected.map(l => {
+                let line = `- <lora:${l.name}>`;
+                if (l.triggerWords) {
+                    line += ` (trigger: ${l.triggerWords})`;
+                }
+                if (includeDescriptions && l.description) {
+                    line += ` — desc: ${truncate(l.description, MAX_DESC)}`;
+                }
+                return line;
+            });
+
+            // Ensure the block isn't excessively large; trim descriptions or drop LoRAs if needed
+            let block = '**Available LoRAs:**\n' + parts.join('\n');
+            if (block.length > MAX_BLOCK && includeDescriptions) {
+                // Try removing descriptions first
+                parts = selected.map(l => {
+                    let line = `- <lora:${l.name}>`;
+                    if (l.triggerWords) line += ` (trigger: ${l.triggerWords})`;
+                    return line;
+                });
+                block = '**Available LoRAs:**\n' + parts.join('\n');
+            }
+            if (block.length > MAX_BLOCK) {
+                // As a last resort, keep only names for first 3 LoRAs
+                parts = selected.slice(0, 3).map(l => `- <lora:${l.name}>${l.triggerWords ? ` (trigger: ${l.triggerWords})` : ''}`);
+                block = '**Available LoRAs (trimmed):**\n' + parts.join('\n');
+            }
+            return block + '\nYou may suggest appropriate LoRAs using the syntax <lora:name> when relevant to the prompt.';
+        };
+
         // Add LoRA information if available
         if (this.loraMetadata && this.loraMetadata.length > 0) {
-            basePrompt += '\n\n**Available LoRAs:**\n';
-            for (let lora of this.loraMetadata.slice(0, 20)) { // Limit to avoid token overflow
-                basePrompt += `- <lora:${lora.name}>`;
-                if (lora.triggerWords) {
-                    basePrompt += ` (trigger: ${lora.triggerWords})`;
+            try {
+                const includeDescriptions = !!document.getElementById('llm_refine_include_lora_desc')?.checked;
+                basePrompt += '\n\n' + buildLoRABlock(this.loraMetadata, includeDescriptions) + '\n';
+            } catch (e) {
+                // Fallback to names+triggers only
+                basePrompt += '\n\n**Available LoRAs:**\n';
+                for (let lora of this.loraMetadata.slice(0, 5)) {
+                    basePrompt += `- <lora:${lora.name}>`;
+                    if (lora.triggerWords) basePrompt += ` (trigger: ${lora.triggerWords})`;
+                    basePrompt += '\n';
                 }
-                basePrompt += '\n';
+                basePrompt += '\nYou may suggest appropriate LoRAs using the syntax <lora:name> when relevant to the prompt.';
             }
-            basePrompt += '\nYou may suggest appropriate LoRAs using the syntax <lora:name> when relevant to the prompt.';
         }
 
         return basePrompt;

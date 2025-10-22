@@ -47,6 +47,7 @@ public static class BasicAPIFeatures
         AdminAPI.Register();
         UtilAPI.Register();
         OpenRouterAPI.Register();
+    LoraAPI.Register();
     }
 
     /// <summary>Rate limiter for <see cref="Login(HttpContext, string, string)"/> to prevent spamming it, limited by IP address.</summary>
