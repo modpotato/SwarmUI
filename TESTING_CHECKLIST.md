@@ -236,12 +236,150 @@ Test in:
 - [ ] Safari (if on Mac)
 - [ ] Edge
 
-### Test 30: Different Screen Sizes
+## Browser Compatibility
+
+### Test 29: Different Browsers
+Test in:
+- [ ] Chrome/Chromium
+- [ ] Firefox
+- [ ] Safari (if on Mac)
+- [ ] Edge
+
+### Test 30: Different Screen Sizes and Mobile Testing
 Test on:
 - [ ] Desktop (1920x1080)
 - [ ] Laptop (1366x768)
 - [ ] Tablet (landscape and portrait)
 - [ ] Mobile (if applicable)
+
+#### Mobile-Specific Tests:
+
+##### Test 30.1: Mobile Layout Auto-Detection
+- [ ] Open SwarmUI on a mobile device (or with browser dev tools in mobile mode)
+- [ ] Verify layout automatically switches to mobile mode (small-window class applied)
+- [ ] Verify left and right sidebars are closed by default
+- [ ] Verify bottom section is closed by default
+- [ ] Verify main image area takes full width
+
+##### Test 30.2: Mobile Mode Toggle
+- [ ] Navigate to User Settings (or Layout Settings if available)
+- [ ] Find "Mobile/Desktop Layout" selector
+- [ ] Test switching between:
+  - [ ] Auto (responsive to screen size)
+  - [ ] Mobile (force mobile layout)
+  - [ ] Desktop (force desktop layout)
+- [ ] Verify layout changes immediately
+- [ ] Verify setting persists after page reload
+
+##### Test 30.3: Touch Interactions
+- [ ] Test all buttons are at least 44x44 pixels (Apple's minimum touch target)
+- [ ] Verify buttons respond to touch without delay
+- [ ] Test scrolling in parameter sidebar is smooth
+- [ ] Test scrolling in image batch area is smooth
+- [ ] Verify pinch-to-zoom works on generated images
+
+##### Test 30.4: Swipe Gestures (Mobile)
+- [ ] Swipe from left edge inward → Opens left sidebar
+- [ ] Swipe from anywhere towards left → Closes left sidebar (when open)
+- [ ] Swipe from right edge inward → Opens right sidebar
+- [ ] Swipe from anywhere towards right → Closes right sidebar (when open)
+- [ ] Swipe from bottom edge upward → Opens bottom section
+- [ ] Swipe from anywhere downward → Closes bottom section (when open)
+- [ ] Verify swipe gestures require minimum distance (40% of screen or 100px)
+- [ ] Verify swipe gestures don't interfere with scrolling
+- [ ] Verify swipe gestures don't trigger on buttons or inputs
+
+##### Test 30.5: Mobile Portrait Orientation
+- [ ] Test layout in portrait mode on mobile
+- [ ] Verify prompt box is visible and usable
+- [ ] Verify generate button is accessible
+- [ ] Verify image output area is appropriately sized
+- [ ] Test parameter inputs are accessible
+
+##### Test 30.6: Mobile Landscape Orientation
+- [ ] Rotate device to landscape
+- [ ] Verify layout adjusts appropriately
+- [ ] Verify all UI elements remain accessible
+- [ ] Test switching between portrait and landscape
+
+##### Test 30.7: Modal Dialogs on Mobile
+- [ ] Open various modals (e.g., LLM Refinement, Image Editor)
+- [ ] Verify modals fit within screen width (max 95vw)
+- [ ] Verify modal content is scrollable if needed
+- [ ] Verify modal close button is easily tappable
+- [ ] Test modal interaction doesn't trigger background elements
+
+##### Test 30.8: Dropdown Menus on Mobile
+- [ ] Test model selection dropdown
+- [ ] Test parameter dropdowns (sampler, scheduler, etc.)
+- [ ] Verify dropdowns display properly
+- [ ] Verify selected option is visible
+- [ ] Verify touch scrolling works in long dropdowns
+
+##### Test 30.9: Text Input on Mobile
+- [ ] Test typing in prompt box
+- [ ] Verify on-screen keyboard doesn't obscure important UI
+- [ ] Test auto-resize of prompt box as text is entered
+- [ ] Verify autocomplete/suggestions work if implemented
+- [ ] Test copy/paste functionality
+
+##### Test 30.10: Image Batch on Mobile
+- [ ] Generate multiple images
+- [ ] Verify batch grid displays properly
+- [ ] Verify images are appropriately sized
+- [ ] Test tapping images to view full size
+- [ ] Verify batch scrolling works smoothly
+- [ ] Test "Clear Batch" button accessibility
+
+##### Test 30.11: Parameter Visibility on Mobile
+- [ ] Open left sidebar on mobile
+- [ ] Verify all parameters are accessible
+- [ ] Test scrolling through parameters
+- [ ] Verify parameter inputs are usable
+- [ ] Test advanced options toggle
+- [ ] Verify parameter filter search works
+
+##### Test 30.12: Mobile Performance
+- [ ] Monitor frame rate during interactions
+- [ ] Verify no lag when opening/closing sidebars
+- [ ] Test responsiveness of generate button
+- [ ] Verify image loading performance
+- [ ] Check memory usage during extended session
+
+##### Test 30.13: Tablet-Specific (768px - 1024px)
+- [ ] Test layout on tablet (or simulated tablet size)
+- [ ] Verify intermediate layout scaling
+- [ ] Test in both portrait and landscape
+- [ ] Verify all features remain accessible
+- [ ] Test with touch and/or mouse input
+
+##### Test 30.14: Desktop-to-Mobile Transition
+- [ ] Start in desktop layout
+- [ ] Resize browser window to mobile size
+- [ ] Verify smooth transition to mobile layout
+- [ ] Verify sidebars auto-close
+- [ ] Verify no layout breaking occurs
+
+##### Test 30.15: Mobile-to-Desktop Transition
+- [ ] Start in mobile layout
+- [ ] Resize browser window to desktop size
+- [ ] Verify smooth transition to desktop layout
+- [ ] Verify sidebars restore to sensible defaults
+- [ ] Verify split bars become draggable
+
+##### Test 30.16: Mobile Accessibility
+- [ ] Test with screen reader (VoiceOver on iOS, TalkBack on Android)
+- [ ] Verify all interactive elements are announced
+- [ ] Test keyboard navigation (Bluetooth keyboard on mobile)
+- [ ] Verify sufficient color contrast
+- [ ] Test with increased text size settings
+
+##### Test 30.17: Network Performance on Mobile
+- [ ] Test on 3G/4G connection
+- [ ] Verify graceful handling of slow network
+- [ ] Test offline detection if implemented
+- [ ] Verify progressive loading of images
+- [ ] Test reconnection after network loss
 
 ## Performance Tests
 

@@ -24,9 +24,11 @@ Beginner users will love Swarm's primary Generate tab interface, making it easy 
 Those interested in helping push Swarm from Beta to a Full ready-for-anything perfected Release status are welcome to submit PRs (read the [Contributing](/CONTRIBUTING.md) document first), and you can contact us here on GitHub or on [Discord](https://discord.gg/q2y38cqjNw). I highly recommend reaching out to ask about plans for a feature before PRing it. There may already be specific plans or even a work in progress.
 
 Key feature targets not yet implemented:
-- Better mobile browser support
 - full detail "Current Model" display in UI, separate from the model selector (probably as a tab within the batch sidebar?)
 - convenient direct-distribution of Swarm as a program ([Tauri](https://tauri.app/), [Blazor Desktop](https://learn.microsoft.com/en-us/training/modules/build-blazor-hybrid/), or an Electron app?)
+
+Recent enhancements:
+- ✅ Enhanced mobile browser support with responsive design, touch-optimized UI, and swipe gestures ([Mobile UI Guide](/docs/Mobile_UI_Guide.md))
 
 # Try It On Google Colab
 

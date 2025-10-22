@@ -297,7 +297,90 @@ Step 7: Generates
 
 ## 8. Mobile/Responsive View
 
-### Compact Modal View
+### Mobile Layout Overview (Small Screens < 768px)
+
+```
+┌────────────────────────────┐
+│ ☰  SwarmUI        [User] │  ← Top bar with hamburger menu
+├────────────────────────────┤
+│                            │
+│  [Main Image Display]      │  ← Full-width image area
+│                            │
+│  [Current Image]           │
+│                            │
+│                            │
+├────────────────────────────┤
+│ Prompt: [Type here...]     │  ← Floating prompt box
+│ [+] Generate [⚡] [×]      │
+├────────────────────────────┤
+│ [Swipe up for options ▲]   │  ← Gesture indicator
+└────────────────────────────┘
+```
+
+### Mobile - Left Sidebar (Swiped Open)
+
+```
+┌────────────────────────────┐
+│ ◄ Parameters               │  ← Close arrow
+├────────────────────────────┤
+│ [Filter...]           [×]  │
+│                            │
+│ ▼ Model                    │
+│   [Select Model     ▼]     │
+│                            │
+│ ▼ Size                     │
+│   Width:  [512      ▼]     │
+│   Height: [512      ▼]     │
+│                            │
+│ ▼ Sampling                 │
+│   Steps:  [20]             │
+│   CFG:    [7.0]            │
+│                            │
+│ [Show Advanced ▼]          │
+│                            │
+└────────────────────────────┘
+```
+
+### Mobile - Right Sidebar (Batch Images)
+
+```
+┌────────────────────────────┐
+│ Batch Images           ►   │  ← Close arrow
+├────────────────────────────┤
+│ [⚙]                        │  ← Gear for batch settings
+│                            │
+│ ┌────┐ ┌────┐             │
+│ │img1│ │img2│             │  ← 2 columns on mobile
+│ └────┘ └────┘             │
+│ ┌────┐ ┌────┐             │
+│ │img3│ │img4│             │
+│ └────┘ └────┘             │
+│                            │
+│ [Scroll for more ↓]        │
+└────────────────────────────┘
+```
+
+### Mobile - Bottom Section (History/Advanced)
+
+```
+┌────────────────────────────┐
+│ [Swipe down to close ▼]    │
+├────────────────────────────┤
+│ ┌──┬────────┬─────────┐    │
+│ │ │History │Advanced│    │
+│ └──┴────────┴─────────┘    │
+│                            │
+│ [Tab Content Here]         │
+│                            │
+│ - Recent generations       │
+│ - Advanced settings        │
+│ - Server status            │
+│                            │
+└────────────────────────────┘
+```
+
+### Compact Modal View (Mobile)
+
 ```
 ┌────────────────────────────┐
 │ Refine with LLM        [×] │
@@ -327,6 +410,146 @@ Step 7: Generates
 │                            │
 │ [Apply]  [Close]           │
 └────────────────────────────┘
+```
+
+### Tablet Layout (768px - 1024px)
+
+```
+┌─────────────────────────────────────────────────┐
+│ SwarmUI                              [User] [⚙] │
+├──────────────┬─────────────────┬────────────────┤
+│              │                 │                │
+│ [Parameters] │ [Main Image]    │ [Batch]        │
+│              │                 │                │
+│  (20rem)     │  (flexible)     │  (18rem)       │
+│              │                 │                │
+│              │                 │ ┌────┐┌────┐  │
+│              │                 │ │img1││img2│  │
+│              │                 │ └────┘└────┘  │
+│              │                 │                │
+├──────────────┴─────────────────┴────────────────┤
+│ Prompt: [Type your prompt here...]              │
+│ [+] [Generate]              [Advanced Tools]    │
+└─────────────────────────────────────────────────┘
+```
+
+### Mobile Interaction States
+
+#### State 1: All Closed (Default Mobile View)
+```
+┌────────────────────────────┐
+│        SwarmUI      ☰      │
+├────────────────────────────┤
+│                            │
+│                            │
+│   [Generated Image]        │
+│                            │
+│                            │
+├────────────────────────────┤
+│ ┌──────────────────────┐   │
+│ │ Type prompt...       │   │
+│ │                      │   │
+│ └──────────────────────┘   │
+│ [+]  [Generate]  [×]       │
+└────────────────────────────┘
+
+Swipe gestures:
+◄ From left edge: Open params
+► From right edge: Open batch
+▲ From bottom: Open advanced
+```
+
+#### State 2: Left Sidebar Open
+```
+┌────────────────────────────┐
+│ ◄ Params     │ Image     ☰ │
+├──────────────┼─────────────┤
+│              │             │
+│ [Model  ▼]  │             │
+│ [Width  ▼]  │  [Image]    │
+│ [Height ▼]  │             │
+│ [Steps]     │             │
+│ [CFG]       │             │
+│              │             │
+│ [Advanced▼] │             │
+└──────────────┴─────────────┘
+
+Swipe ◄ anywhere: Close params
+```
+
+#### State 3: Right Sidebar Open  
+```
+┌────────────────────────────┐
+│ ☰  Image    │  Batch    ► │
+├─────────────┼──────────────┤
+│             │ [⚙]         │
+│             │ ┌──┐ ┌──┐   │
+│  [Image]    │ │1 │ │2 │   │
+│             │ └──┘ └──┘   │
+│             │ ┌──┐ ┌──┐   │
+│             │ │3 │ │4 │   │
+│             │ └──┘ └──┘   │
+└─────────────┴──────────────┘
+
+Swipe ► anywhere: Close batch
+```
+
+### Mobile Gesture Guide
+
+```
+┌─────────────────────────────────────────┐
+│ Mobile Gestures Quick Reference         │
+├─────────────────────────────────────────┤
+│                                         │
+│  ◄──── Swipe from left edge            │
+│       Opens parameter sidebar          │
+│                                         │
+│  ────► Swipe from right edge           │
+│       Opens image batch sidebar        │
+│                                         │
+│  ▲     Swipe from bottom edge          │
+│  │     Opens advanced/history          │
+│                                         │
+│  Swipe ◄ on content                    │
+│       Closes left sidebar              │
+│                                         │
+│  Swipe ► on content                    │
+│       Closes right sidebar             │
+│                                         │
+│  │  Swipe ▼ on content                │
+│  ▼       Closes bottom section         │
+│                                         │
+│  Tap outside sidebar                   │
+│       Auto-closes open sidebars        │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+### Responsive Breakpoints
+
+```
+Mobile (Small):    < 768px
+  - Single column layout
+  - Swipe-based navigation
+  - Full-width components
+  - Stacked UI elements
+
+Tablet (Medium):   768px - 1024px
+  - Two/three column hybrid
+  - Some sidebars visible
+  - Larger touch targets
+  - Flexible spacing
+
+Desktop (Large):   > 1024px
+  - Multi-column layout
+  - All sections visible
+  - Drag-to-resize bars
+  - Compact spacing
+
+Desktop (XL):      > 1920px
+  - Expanded sidebars
+  - More content visible
+  - Optimized for large displays
 ```
 
 ---
