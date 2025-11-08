@@ -55,9 +55,24 @@ class PromptLLM {
             if (resp && resp.loras) {
                 this.loraMetadata = [];
                 for (let item of resp.loras) {
+                    // Tolerant field mapping: support multiple field name variations
+                    // id can be: id, name, ID, title
+                    const id = item.id ?? item.name ?? item.ID ?? item.title;
+                    // title for display (if different from id)
+                    const title = item.title ?? (item.id ? undefined : id);
+                    // trigger can be: triggerPhrase, triggerWords, trigger
+                    const trigger = item.triggerPhrase ?? item.triggerWords ?? item.trigger;
+                    
+                    // Skip entries without a valid id
+                    if (!id) {
+                        console.warn('Skipping LoRA entry with no valid id:', item);
+                        continue;
+                    }
+                    
                     this.loraMetadata.push({
-                        name: item.id || item.title,
-                        triggerWords: item.triggerPhrase || null,
+                        name: id,
+                        title: title,
+                        triggerWords: trigger || null,
                         description: item.description || null,
                         preview: item.preview || null,
                         tags: item.tags || null
@@ -533,6 +548,16 @@ class PromptLLM {
      * Open the refinement modal and prepare the source.
      */
     openModal() {
+        // Ensure modal element is appended to document.body for proper Bootstrap positioning
+        try {
+            const modalElement = document.getElementById('llm_prompt_refine_modal');
+            if (modalElement && modalElement.parentElement !== document.body) {
+                document.body.appendChild(modalElement);
+            }
+        } catch (e) {
+            console.warn('Failed to reposition modal element to document.body:', e);
+        }
+        
         this.initializeContextControls();
 
         // Reset UI state before loading context
@@ -1465,7 +1490,7 @@ class PromptLLM {
         const truncate = (s, max) => s && s.length > max ? s.slice(0, max - 1) + '…' : s;
         const buildLoRABlock = (loras, includeDescriptions) => {
             if (!loras || loras.length === 0) return '';
-            const MAX_LORAS = 5; // include at most 5 LoRAs by default
+            const MAX_LORAS = 20; // include up to 20 LoRAs (increased from 5)
             const MAX_DESC = 150; // max chars per description
             const MAX_BLOCK = 2000; // max total chars for the block
 
@@ -1508,7 +1533,7 @@ class PromptLLM {
             } catch (e) {
                 // Fallback to names+triggers only
                 basePrompt += '\n\n**Available LoRAs:**\n';
-                for (let lora of this.loraMetadata.slice(0, 5)) {
+                for (let lora of this.loraMetadata.slice(0, 20)) {
                     basePrompt += `- <lora:${lora.name}>`;
                     if (lora.triggerWords) basePrompt += ` (trigger: ${lora.triggerWords})`;
                     basePrompt += '\n';
