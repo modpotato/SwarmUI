@@ -198,7 +198,7 @@ public static class WebhookManager
             if (!string.IsNullOrWhiteSpace(userDiscordWebhook))
             {
                 string userDiscordData = input.SourceSession.User.Settings.DiscordWebhookData;
-                SendWebhook("User Discord", userDiscordWebhook, userDiscordData, input, imageData, imageRaw);
+                SendWebhook("User Discord", userDiscordWebhook, userDiscordData, input, imageData, rawFile);
             }
         }
     }
