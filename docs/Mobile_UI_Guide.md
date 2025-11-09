@@ -6,6 +6,24 @@ SwarmUI includes comprehensive mobile support designed to provide an optimal exp
 
 ## Mobile Features
 
+### Mobile Image Stream
+
+SwarmUI includes a dedicated mobile-first image browsing interface with a TikTok-style fullscreen vertical scroller. This feature is specifically designed for thumb-driven mobile browsing of generated images.
+
+**Access**: Navigate to `/Mobile/Stream`
+
+**Key Features:**
+- Fullscreen vertical scrolling with snap-to-image
+- Infinite scroll with automatic loading
+- Quick star/favorite toggle
+- Advanced filtering (starred, prompt, model, LoRA)
+- Image details drawer
+- Share functionality with deep linking
+- DOM virtualization for performance
+- Prefetching for smooth scrolling
+
+See [Mobile Stream Feature Documentation](Mobile-Stream-Feature.md) for complete details.
+
 ### Responsive Layout System
 
 The UI automatically adapts to different screen sizes:
@@ -219,13 +237,14 @@ Mobile optimizations for better performance:
 
 Potential improvements for mobile UX:
 
+- [x] **Mobile Image Stream**: TikTok-style fullscreen scroller (implemented at `/Mobile/Stream`)
 - [ ] PWA support (install as app)
 - [ ] Offline mode
 - [ ] Pull-to-refresh
 - [ ] Haptic feedback for interactions
 - [ ] Voice input for prompts
 - [ ] Camera integration for image uploads
-- [ ] Share sheet integration
+- [ ] Share sheet integration (partially implemented in Mobile Stream)
 - [ ] Dark/light mode based on system preference
 
 ## Contributing
