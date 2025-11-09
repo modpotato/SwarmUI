@@ -30,6 +30,7 @@ public static class T2IAPI
         API.RegisterAPICall(GenerateText2ImageWS, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(AddImageToHistory, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(ListImages, false, Permissions.ViewImageHistory);
+        API.RegisterAPICall(ListImagesMobile, false, Permissions.ViewImageHistory);
         API.RegisterAPICall(ToggleImageStarred, true, Permissions.UserStarImages);
         API.RegisterAPICall(OpenImageFolder, true, Permissions.LocalImageFolder);
         API.RegisterAPICall(DeleteImage, true, Permissions.UserDeleteImage);
@@ -671,6 +672,200 @@ public static class T2IAPI
         }
         string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
         return GetListAPIInternal(session, path, root, ImageExtensions, f => true, depth, sortMode, sortReverse);
+    }
+
+    [API.APIDescription("Gets a paginated list of images for mobile streaming with cursor-based pagination and filtering.",
+        """
+            "images":
+            [
+                {
+                    "src": "path/to/image.jpg",
+                    "metadata": "metadata-json-string"
+                }
+            ],
+            "next_cursor": "cursor-string-or-null",
+            "has_more": true
+        """)]
+    public static async Task<JObject> ListImagesMobile(Session session,
+        [API.APIParameter("Cursor for pagination, null or empty for first page.")] string cursor = null,
+        [API.APIParameter("Maximum number of images to return per page.")] int limit = 30,
+        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sort_by = "Date",
+        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sort_reverse = true,
+        [API.APIParameter("If true, only return starred images.")] bool starred_only = false,
+        [API.APIParameter("Filter by prompt text (case insensitive substring match).")] string prompt_search = "",
+        [API.APIParameter("Filter by model name (case insensitive substring match).")] string model_search = "",
+        [API.APIParameter("Filter by LoRA name (case insensitive substring match).")] string lora_search = "")
+    {
+        if (!Enum.TryParse(sort_by, true, out ImageHistorySortMode sortMode))
+        {
+            return new JObject() { ["error"] = $"Invalid sort mode '{sort_by}'." };
+        }
+
+        // Parse cursor (format: "path:offset")
+        string searchPath = "";
+        int offset = 0;
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            string[] parts = cursor.Split(':');
+            if (parts.Length == 2 && int.TryParse(parts[1], out int parsedOffset))
+            {
+                searchPath = parts[0];
+                offset = parsedOffset;
+            }
+        }
+
+        // Start path from Starred folder if starred_only
+        if (starred_only && string.IsNullOrEmpty(searchPath))
+        {
+            searchPath = "Starred";
+        }
+
+        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        
+        // Get all images (we need to filter, so get more than limit)
+        int fetchLimit = Math.Max(limit * 3, 100); // Fetch extra to account for filtering
+        JObject allImages = GetListAPIInternal(session, searchPath, root, ImageExtensions, f => true, 5, sortMode, sort_reverse);
+        
+        if (allImages.ContainsKey("error"))
+        {
+            return allImages;
+        }
+
+        JArray files = allImages["files"] as JArray ?? new JArray();
+        List<JObject> filteredImages = new();
+
+        // Apply filters
+        bool hasPromptFilter = !string.IsNullOrWhiteSpace(prompt_search);
+        bool hasModelFilter = !string.IsNullOrWhiteSpace(model_search);
+        bool hasLoraFilter = !string.IsNullOrWhiteSpace(lora_search);
+
+        foreach (JObject file in files.Cast<JObject>())
+        {
+            string src = file["src"]?.ToString();
+            string metadataStr = file["metadata"]?.ToString();
+
+            // Skip if already processed (before offset)
+            if (filteredImages.Count < offset)
+            {
+                // Need to check if this would pass filters to maintain correct offset
+                if (ShouldIncludeImage(metadataStr, hasPromptFilter, prompt_search, hasModelFilter, model_search, hasLoraFilter, lora_search, starred_only, src))
+                {
+                    filteredImages.Add(file);
+                }
+                continue;
+            }
+
+            // Apply filters
+            if (!ShouldIncludeImage(metadataStr, hasPromptFilter, prompt_search, hasModelFilter, model_search, hasLoraFilter, lora_search, starred_only, src))
+            {
+                continue;
+            }
+
+            filteredImages.Add(file);
+
+            // Stop if we have enough
+            if (filteredImages.Count >= offset + limit)
+            {
+                break;
+            }
+        }
+
+        // Get page results
+        List<JObject> pageImages = filteredImages.Skip(offset).Take(limit).ToList();
+        
+        // Determine if there are more images
+        bool hasMore = filteredImages.Count > offset + limit || files.Count >= fetchLimit;
+        
+        // Generate next cursor
+        string nextCursor = null;
+        if (hasMore && pageImages.Count > 0)
+        {
+            nextCursor = $"{searchPath}:{offset + pageImages.Count}";
+        }
+
+        return new JObject()
+        {
+            ["images"] = JArray.FromObject(pageImages),
+            ["next_cursor"] = nextCursor,
+            ["has_more"] = hasMore
+        };
+    }
+
+    private static bool ShouldIncludeImage(string metadataStr, bool hasPromptFilter, string promptSearch, 
+        bool hasModelFilter, string modelSearch, bool hasLoraFilter, string loraSearch, bool starredOnly, string src)
+    {
+        // Starred filter
+        if (starredOnly && !src.StartsWith("Starred/"))
+        {
+            return false;
+        }
+
+        // If no text filters, include
+        if (!hasPromptFilter && !hasModelFilter && !hasLoraFilter)
+        {
+            return true;
+        }
+
+        // Parse metadata
+        JObject metadata = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(metadataStr))
+            {
+                metadata = JObject.Parse(metadataStr);
+            }
+        }
+        catch
+        {
+            // If metadata can't be parsed, exclude if filters are active
+            return false;
+        }
+
+        if (metadata == null)
+        {
+            return false;
+        }
+
+        // Prompt filter
+        if (hasPromptFilter)
+        {
+            string prompt = metadata["prompt"]?.ToString() ?? "";
+            if (!prompt.Contains(promptSearch, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        // Model filter
+        if (hasModelFilter)
+        {
+            string model = metadata["model"]?.ToString() ?? metadata["Model"]?.ToString() ?? "";
+            if (!model.Contains(modelSearch, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        // LoRA filter
+        if (hasLoraFilter)
+        {
+            string lorasStr = "";
+            if (metadata["loras"] != null)
+            {
+                lorasStr = string.Join(" ", metadata["loras"].Select(l => l.ToString()));
+            }
+            else if (metadata["LoRAs"] != null)
+            {
+                lorasStr = string.Join(" ", metadata["LoRAs"].Select(l => l.ToString()));
+            }
+            
+            if (!lorasStr.Contains(loraSearch, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     [API.APIDescription("Open an image folder in the file explorer. Used for local users directly.", "\"success\": true")]

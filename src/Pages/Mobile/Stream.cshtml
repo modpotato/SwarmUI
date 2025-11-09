@@ -1,0 +1,187 @@
+@page
+@using SwarmUI.Core
+@using SwarmUI.Accounts
+@using SwarmUI.Utils
+@{
+    ViewData["Title"] = "Mobile Image Stream";
+    
+    // Check if user is authenticated
+    Session session = null;
+    if (Program.Sessions is not null)
+    {
+        string sessId = HttpContext.Request.Cookies["session_id"];
+        if (sessId is not null && Program.Sessions.Sessions.TryGetValue(sessId, out session))
+        {
+            // Valid session
+        }
+    }
+    
+    // Redirect if not installed or not logged in
+    if (!Program.ServerSettings.IsInstalled)
+    {
+        <script>
+            window.location.href = "/Install";
+        </script>
+        return;
+    }
+    
+    bool requiresLogin = Program.ServerSettings.UserAuthorization.AuthorizationRequired;
+    if (requiresLogin && session?.User is null)
+    {
+        <script>
+            window.location.href = "/Login";
+        </script>
+        return;
+    }
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="/css/mobile-stream.css?vary=@Utilities.VaryID" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <script src="/js/lib/jquery.min.js"></script>
+</head>
+<body>
+    <div id="mobile-stream-container">
+        <!-- Top overlay bar -->
+        <div id="top-bar" class="overlay-bar">
+            <button id="back-button" class="icon-button" title="Back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <div id="image-counter">0 / 0</div>
+            <button id="filter-button" class="icon-button" title="Filter">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Main image container -->
+        <div id="image-scroller">
+            <div id="loading-spinner" class="spinner">
+                <div class="spinner-circle"></div>
+                <div class="spinner-text">Loading images...</div>
+            </div>
+        </div>
+
+        <!-- Bottom overlay bar -->
+        <div id="bottom-bar" class="overlay-bar">
+            <button id="info-button" class="icon-button" title="Info">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+            </button>
+            <button id="star-button" class="icon-button star" title="Star">
+                <svg class="star-outline" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                <svg class="star-filled" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+            </button>
+            <button id="share-button" class="icon-button" title="Share">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Filter drawer -->
+        <div id="filter-drawer" class="drawer">
+            <div class="drawer-handle"></div>
+            <div class="drawer-content">
+                <h3>Filter Images</h3>
+                
+                <div class="filter-section">
+                    <label>Sort By</label>
+                    <select id="sort-select">
+                        <option value="date-desc" selected>Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="name-asc">Name (A-Z)</option>
+                    </select>
+                </div>
+
+                <div class="filter-section">
+                    <label>
+                        <input type="checkbox" id="starred-only" />
+                        Show Starred Only
+                    </label>
+                </div>
+
+                <div class="filter-section">
+                    <label>Search Prompt</label>
+                    <input type="text" id="prompt-search" placeholder="Search by prompt text..." />
+                </div>
+
+                <div class="filter-section">
+                    <label>Model</label>
+                    <input type="text" id="model-search" placeholder="Filter by model..." />
+                </div>
+
+                <div class="filter-section">
+                    <label>LoRA</label>
+                    <input type="text" id="lora-search" placeholder="Filter by LoRA..." />
+                </div>
+
+                <div class="filter-actions">
+                    <button id="clear-filters" class="button-secondary">Clear Filters</button>
+                    <button id="apply-filters" class="button-primary">Apply</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info drawer -->
+        <div id="info-drawer" class="drawer">
+            <div class="drawer-handle"></div>
+            <div class="drawer-content">
+                <h3>Image Details</h3>
+                <div id="info-content">
+                    <div class="info-row">
+                        <span class="info-label">Prompt:</span>
+                        <span id="info-prompt" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Model:</span>
+                        <span id="info-model" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">LoRAs:</span>
+                        <span id="info-loras" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Dimensions:</span>
+                        <span id="info-dimensions" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Steps:</span>
+                        <span id="info-steps" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">CFG Scale:</span>
+                        <span id="info-cfg" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Seed:</span>
+                        <span id="info-seed" class="info-value">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/mobile-stream.js?vary=@Utilities.VaryID"></script>
+</body>
+</html>
