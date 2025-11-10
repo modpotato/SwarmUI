@@ -36,6 +36,15 @@
     // DOM elements
     const elements = {};
 
+    // Path prefix logic - matches site.js implementation
+    // These will be populated from the GetNewSession API call
+    let user_id = null;
+    let outputAppendUser = null;
+
+    function getImageOutPrefix() {
+        return outputAppendUser ? `View/${user_id}` : 'Output';
+    }
+
     // Utility: Build image URL with proper encoding per path segment
     // Uses the same logic as the image history gallery (imagehistory.js)
     function buildImageUrl(imageSrc) {
@@ -68,24 +77,52 @@
         // Get session ID from cookie
         state.sessionId = getCookie('session_id');
 
-        // Parse URL parameters
-        parseURLParameters();
+        // Initialize session info (needed for getImageOutPrefix)
+        initSessionInfo().then(() => {
+            // Parse URL parameters
+            parseURLParameters();
 
-        // Setup event listeners
-        setupEventListeners();
+            // Setup event listeners
+            setupEventListeners();
 
-        // Load initial images
-        loadMoreImages().then(() => {
-            // If deep link to specific image, scroll to it
-            const urlParams = new URLSearchParams(window.location.search);
-            const imageParam = urlParams.get('image');
-            if (imageParam) {
-                const index = state.images.findIndex(img => img.src === imageParam);
-                if (index >= 0) {
-                    scrollToIndex(index);
+            // Load initial images
+            loadMoreImages().then(() => {
+                // If deep link to specific image, scroll to it
+                const urlParams = new URLSearchParams(window.location.search);
+                const imageParam = urlParams.get('image');
+                if (imageParam) {
+                    const index = state.images.findIndex(img => img.src === imageParam);
+                    if (index >= 0) {
+                        scrollToIndex(index);
+                    }
                 }
-            }
+            });
         });
+    }
+
+    async function initSessionInfo() {
+        // Get session info to populate user_id and outputAppendUser
+        try {
+            const response = await fetch('/API/GetNewSession', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: state.sessionId
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                user_id = data.user_id;
+                outputAppendUser = data.output_append_user;
+                console.log('[Mobile Stream] Session initialized:', { user_id, outputAppendUser });
+            }
+        } catch (error) {
+            console.error('[Mobile Stream] Failed to initialize session:', error);
+            // Default to 'Output' if session init fails
+        }
     }
 
     function parseURLParameters() {
