@@ -488,6 +488,27 @@ public static class T2IAPI
 
     public enum ImageHistorySortMode { Name, Date }
 
+    /// <summary>
+    /// Helper method to build a proper image URL for the /View/ endpoint.
+    /// Ensures path segments are URL-encoded properly while maintaining the path structure.
+    /// This is the authoritative way to build image URLs for both API responses and client code.
+    /// </summary>
+    /// <param name="imagePath">The relative image path (e.g., "2025-10-22/image.png" or "Starred/image.png")</param>
+    /// <returns>A properly formatted URL path for the /View/ endpoint</returns>
+    public static string BuildImageViewUrl(string imagePath)
+    {
+        if (string.IsNullOrEmpty(imagePath))
+        {
+            return "";
+        }
+        
+        // Split path into segments and encode each one separately
+        // This ensures commas, spaces, and other special chars are properly encoded
+        string[] segments = imagePath.Split('/');
+        string[] encodedSegments = segments.Select(Uri.EscapeDataString).ToArray();
+        return $"/View/{string.Join("/", encodedSegments)}";
+    }
+
     private static JObject GetListAPIInternal(Session session, string rawPath, string root, HashSet<string> extensions, Func<string, bool> isAllowed, int depth, ImageHistorySortMode sortBy, bool sortReverse)
     {
         int maxInHistory = session.User.Settings.MaxImagesInHistory;
