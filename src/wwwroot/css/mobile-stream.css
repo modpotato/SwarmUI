@@ -387,6 +387,50 @@ html, body {
     }
 }
 
+/* Image Error Overlay */
+.image-error-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10;
+}
+
+.error-content {
+    text-align: center;
+    padding: 20px;
+}
+
+.error-content p {
+    margin-bottom: 12px;
+    color: #ff6b6b;
+    font-size: 14px;
+}
+
+.retry-button {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.retry-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.image-slide.error {
+    background: #1a1a1a;
+}
+
 /* Double-tap prevention overlay */
 .no-double-tap {
     touch-action: manipulation;

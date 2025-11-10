@@ -4,11 +4,12 @@
 
     // Configuration
     const CONFIG = {
-        PREFETCH_AHEAD: 5,      // Number of images to prefetch ahead
+        PREFETCH_AHEAD: 3,      // Number of images to prefetch ahead (reduced from 5)
         PREFETCH_BEHIND: 2,     // Number of images to keep behind
         VIRTUALIZE_WINDOW: 15,  // Total DOM elements to keep (prev + current + next)
         API_PAGE_SIZE: 30,      // Images to fetch per API call
-        SCROLL_DEBOUNCE: 100    // ms
+        SCROLL_DEBOUNCE: 100,   // ms
+        FILTER_DEBOUNCE: 300    // ms - debounce filter changes to reduce requests
     };
 
     // State management
@@ -18,6 +19,9 @@
         cursor: null,            // API cursor for pagination
         hasMore: true,           // Whether more images available
         isLoading: false,        // Loading flag
+        lastRequestedCursor: null, // Track last cursor to prevent duplicate requests
+        inFlightRequests: new Set(), // Track in-flight requests by key (cursor+filters)
+        abortController: null,   // Controller for cancelling pending requests
         filters: {
             sortBy: 'date',
             sortReverse: true,
@@ -33,12 +37,15 @@
     const elements = {};
 
     // Utility: Build image URL with proper encoding per path segment
+    // Uses the same logic as the image history gallery (imagehistory.js)
     function buildImageUrl(imageSrc) {
         if (!imageSrc) return '';
         // Split path into segments and encode each one separately
         const segments = imageSrc.split('/');
         const encodedSegments = segments.map(seg => encodeURIComponent(seg));
-        return `/View/${encodedSegments.join('/')}`;
+        // Use getImageOutPrefix() to get the correct base path (same as gallery)
+        // This returns either 'Output' or 'View/{user_id}' depending on server config
+        return `${getImageOutPrefix()}/${encodedSegments.join('/')}`;
     }
 
     // Initialize
@@ -224,10 +231,31 @@
     }
 
     async function loadMoreImages() {
+        // Strict guards to prevent duplicate requests
         if (state.isLoading || !state.hasMore) return;
         
+        // Create a unique key for this request based on cursor and filters
+        const requestKey = `${state.cursor || 'null'}_${state.filters.sortBy}_${state.filters.sortReverse}_${state.filters.starredOnly}_${state.filters.promptSearch}_${state.filters.modelSearch}_${state.filters.loraSearch}`;
+        
+        // Check if this exact request is already in flight
+        if (state.inFlightRequests.has(requestKey)) {
+            console.log('[Mobile Stream] Skipping duplicate request:', requestKey);
+            return;
+        }
+        
+        // Check if we've already requested this cursor
+        if (state.lastRequestedCursor === state.cursor && state.cursor !== null) {
+            console.log('[Mobile Stream] Skipping already-requested cursor:', state.cursor);
+            return;
+        }
+        
         state.isLoading = true;
+        state.lastRequestedCursor = state.cursor;
+        state.inFlightRequests.add(requestKey);
         elements.loadingSpinner.style.display = 'block';
+        
+        // Create abort controller for this request
+        state.abortController = new AbortController();
         
         try {
             const response = await fetch('/API/ListImagesMobile', {
@@ -245,7 +273,8 @@
                     prompt_search: state.filters.promptSearch,
                     model_search: state.filters.modelSearch,
                     lora_search: state.filters.loraSearch
-                })
+                }),
+                signal: state.abortController.signal
             });
 
             if (!response.ok) {
@@ -266,10 +295,16 @@
                 state.hasMore = false;
             }
         } catch (error) {
-            console.error('Error loading images:', error);
-            showError('Failed to load images. Please try again.');
+            // Don't show error if request was aborted (e.g., due to filter change)
+            if (error.name === 'AbortError') {
+                console.log('[Mobile Stream] Request aborted');
+            } else {
+                console.error('[Mobile Stream] Error loading images:', error);
+                showError('Failed to load images. Please try again.');
+            }
         } finally {
             state.isLoading = false;
+            state.inFlightRequests.delete(requestKey);
             elements.loadingSpinner.style.display = 'none';
         }
     }
@@ -308,6 +343,28 @@
         img.addEventListener('error', () => {
             slide.classList.remove('loading');
             slide.classList.add('error');
+            
+            // Enhanced error logging for debugging
+            const fullUrl = buildImageUrl(imageData.src);
+            console.error(`[Mobile Stream] Image 404 - Relative path: "${imageData.src}", Full URL: "${fullUrl}"`);
+            
+            // Add retry button
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'image-error-overlay';
+            errorDiv.innerHTML = `
+                <div class="error-content">
+                    <p>Failed to load image</p>
+                    <button class="retry-button">Retry</button>
+                </div>
+            `;
+            errorDiv.querySelector('.retry-button').addEventListener('click', (e) => {
+                e.stopPropagation();
+                slide.classList.remove('error');
+                slide.classList.add('loading');
+                img.src = ''; // Clear
+                setTimeout(() => img.src = fullUrl, 100); // Retry
+            });
+            slide.appendChild(errorDiv);
         });
 
         // Set image source with proper URL encoding
@@ -524,6 +581,11 @@
             return;
         }
         
+        // Cancel any pending requests
+        if (state.abortController) {
+            state.abortController.abort();
+        }
+        
         // Read filter values
         const sortValue = document.getElementById('sort-select').value;
         const [sortBy, sortOrder] = sortValue.split('-');
@@ -543,6 +605,8 @@
         state.cursor = null;
         state.hasMore = true;
         state.currentIndex = 0;
+        state.lastRequestedCursor = null;
+        state.inFlightRequests.clear();
         elements.scroller.innerHTML = '';
         elements.loadingSpinner.style.display = 'block';
         
