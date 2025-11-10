@@ -331,8 +331,10 @@
             virtualizeDOM();
         }
 
-        // Load more if near end
-        if (state.currentIndex >= state.images.length - CONFIG.PREFETCH_AHEAD) {
+        // Load more if near end and not already loading/loaded
+        // Only trigger load if we have enough buffer and aren't already fetching
+        const bufferZone = CONFIG.PREFETCH_AHEAD + 5; // Extra buffer to prevent too-eager loading
+        if (!state.isLoading && state.hasMore && state.currentIndex >= state.images.length - bufferZone) {
             loadMoreImages();
         }
     }
@@ -517,6 +519,11 @@
     }
 
     async function applyFilters() {
+        // Prevent concurrent filter applications
+        if (state.isLoading) {
+            return;
+        }
+        
         // Read filter values
         const sortValue = document.getElementById('sort-select').value;
         const [sortBy, sortOrder] = sortValue.split('-');
