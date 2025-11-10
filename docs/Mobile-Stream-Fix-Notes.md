@@ -76,11 +76,27 @@ The `ViewOutput` handler:
 
 ### Client-Side Path Building
 
-The `getImageOutPrefix()` function (in `site.js`) returns the appropriate prefix:
+The `getImageOutPrefix()` function returns the appropriate prefix:
 
 ```javascript
 function getImageOutPrefix() {
     return outputAppendUser ? `View/${user_id}` : 'Output';
+}
+```
+
+For the mobile stream, this function is implemented locally in `mobile-stream.js` since it's a standalone page. The `user_id` and `outputAppendUser` variables are populated via the `GetNewSession` API call during page initialization:
+
+```javascript
+async function initSessionInfo() {
+    const response = await fetch('/API/GetNewSession', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: state.sessionId })
+    });
+    
+    const data = await response.json();
+    user_id = data.user_id;
+    outputAppendUser = data.output_append_user;
 }
 ```
 
