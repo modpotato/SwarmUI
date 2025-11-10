@@ -32,6 +32,15 @@
     // DOM elements
     const elements = {};
 
+    // Utility: Build image URL with proper encoding per path segment
+    function buildImageUrl(imageSrc) {
+        if (!imageSrc) return '';
+        // Split path into segments and encode each one separately
+        const segments = imageSrc.split('/');
+        const encodedSegments = segments.map(seg => encodeURIComponent(seg));
+        return `/View/${encodedSegments.join('/')}`;
+    }
+
     // Initialize
     function init() {
         // Cache DOM elements
@@ -218,6 +227,7 @@
         if (state.isLoading || !state.hasMore) return;
         
         state.isLoading = true;
+        elements.loadingSpinner.style.display = 'block';
         
         try {
             const response = await fetch('/API/ListImagesMobile', {
@@ -300,8 +310,8 @@
             slide.classList.add('error');
         });
 
-        // Set image source
-        img.src = `/View/${imageData.src}`;
+        // Set image source with proper URL encoding
+        img.src = buildImageUrl(imageData.src);
         
         slide.appendChild(img);
         return slide;
@@ -321,8 +331,10 @@
             virtualizeDOM();
         }
 
-        // Load more if near end
-        if (state.currentIndex >= state.images.length - CONFIG.PREFETCH_AHEAD) {
+        // Load more if near end and not already loading/loaded
+        // Only trigger load if we have enough buffer and aren't already fetching
+        const bufferZone = CONFIG.PREFETCH_AHEAD + 5; // Extra buffer to prevent too-eager loading
+        if (!state.isLoading && state.hasMore && state.currentIndex >= state.images.length - bufferZone) {
             loadMoreImages();
         }
     }
@@ -369,7 +381,7 @@
                 const img = slide.querySelector('img');
                 const imageData = state.images[index];
                 if (img && imageData) {
-                    img.src = `/View/${imageData.src}`;
+                    img.src = buildImageUrl(imageData.src);
                     slide.classList.add('loading');
                 }
             }
@@ -507,6 +519,11 @@
     }
 
     async function applyFilters() {
+        // Prevent concurrent filter applications
+        if (state.isLoading) {
+            return;
+        }
+        
         // Read filter values
         const sortValue = document.getElementById('sort-select').value;
         const [sortBy, sortOrder] = sortValue.split('-');

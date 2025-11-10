@@ -590,7 +590,9 @@ public class WebServer
         {
             if (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is PathTooLongException)
             {
-                Logs.Verbose($"File-not-found error reading output file '{path}': {ex.ReadableString()}");
+                // Enhanced logging for mobile stream debugging
+                string origRequestPath = context.Request.Path.ToString();
+                Logs.Verbose($"File-not-found (404) - Original request: '{origRequestPath}', Resolved path: '{path}', Root: '{root}'");
                 await context.YieldJsonOutput(null, 404, Utilities.ErrorObj("404, file not found.", "file_not_found"));
             }
             else
