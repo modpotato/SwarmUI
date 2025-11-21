@@ -22,7 +22,8 @@ public class APICallReflectBuilder
         [typeof(bool)] = input => (bool.TryParse(input.ToString(), out bool output), output),
         [typeof(byte)] = input => (byte.TryParse(input.ToString(), out byte output), output),
         [typeof(char)] = input => (char.TryParse(input.ToString(), out char output), output),
-        [typeof(string[])] = input => (true, input.ToList().Select(j => j.ToString()).ToArray())
+        [typeof(string[])] = input => (true, input.ToList().Select(j => j.ToString()).ToArray()),
+        [typeof(JArray)] = input => (input is JArray || input.Type == JTokenType.Null, input as JArray)
     };
 
     public static APICall BuildFor(object obj, MethodInfo method, bool isUserUpdate, PermInfo permission)
