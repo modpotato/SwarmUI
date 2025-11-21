@@ -227,6 +227,7 @@ public static class BasicAPIFeatures
     public static async Task<JObject> GetMyUserData(Session session)
     {
         Settings.User.AutoCompleteData settings = session.User.Settings.AutoComplete;
+        Settings.User.AgenticImagenData agenticImagenSettings = session.User.Settings?.AgenticImagen ?? Program.ServerSettings.DefaultUser.AgenticImagen;
         return new JObject()
         {
             ["user_name"] = session.User.UserID,
@@ -234,7 +235,12 @@ public static class BasicAPIFeatures
             ["language"] = session.User.Settings.Language,
             ["permissions"] = JArray.FromObject(session.User.GetPermissions()),
             ["starred_models"] = JObject.Parse(session.User.GetGenericData("starred_models", "full") ?? "{}"),
-            ["autocompletions"] = string.IsNullOrWhiteSpace(settings.Source) ? null : new JArray(AutoCompleteListHelper.GetData(settings.Source, settings.EscapeParens, settings.Suffix, settings.SpacingMode))
+            ["autocompletions"] = string.IsNullOrWhiteSpace(settings.Source) ? null : new JArray(AutoCompleteListHelper.GetData(settings.Source, settings.EscapeParens, settings.Suffix, settings.SpacingMode)),
+            ["agentic_imagen_prompts"] = new JObject()
+            {
+                ["turn_a"] = agenticImagenSettings?.TurnAPrompt ?? "",
+                ["turn_b"] = agenticImagenSettings?.TurnBPrompt ?? ""
+            }
         };
     }
 

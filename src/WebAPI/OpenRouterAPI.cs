@@ -19,6 +19,7 @@ public static class OpenRouterAPI
     {
         API.RegisterAPICall(GetOpenRouterModels, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(RefinePromptWithOpenRouter, true, Permissions.BasicImageGeneration);
+        API.RegisterAPICall(CallOpenRouterWithTools, true, Permissions.BasicImageGeneration);
     }
 
     [API.APIDescription("Get list of available models from OpenRouter.",
@@ -275,6 +276,217 @@ public static class OpenRouterAPI
         {
             Logs.Error($"Error refining prompt with OpenRouter: {ex}");
             return new JObject() { ["error"] = $"Error refining prompt: {ex.Message}" };
+        }
+    }
+
+    [API.APIDescription("Call OpenRouter LLM with function/tool calling support.",
+        """
+        {
+            "content": "LLM response text",
+            "tool_calls": [
+                {
+                    "name": "function_name",
+                    "arguments": { "arg1": "value1" }
+                }
+            ]
+        }
+        """)]
+    public static async Task<JObject> CallOpenRouterWithTools(
+        Session session,
+        [API.APIParameter("The model ID to use.")] string modelId,
+        [API.APIParameter("System prompt for the LLM.")] string systemPrompt,
+        [API.APIParameter("User message content.")] string userMessage,
+        [API.APIParameter("Available tools/functions (optional).")] JArray tools = null,
+        [API.APIParameter("Image data URLs for vision context (optional).")] string[] imageData = null,
+        [API.APIParameter("Temperature for sampling (optional, default 0.7).")] double temperature = 0.7,
+        [API.APIParameter("Max tokens for response (optional, default 1000).")] int maxTokens = 1000)
+    {
+        string apiKey = session.User.GetGenericData("openrouter_api", "key");
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return new JObject() { ["error"] = "OpenRouter API key not set. Please configure it in User Settings." };
+        }
+
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return new JObject() { ["error"] = "Model ID is required." };
+        }
+
+        if (string.IsNullOrWhiteSpace(systemPrompt) || string.IsNullOrWhiteSpace(userMessage))
+        {
+            return new JObject() { ["error"] = "System prompt and user message are required." };
+        }
+
+        try
+        {
+            // Build messages array
+            JArray messages = new()
+            {
+                new JObject()
+                {
+                    ["role"] = "system",
+                    ["content"] = systemPrompt
+                }
+            };
+
+            // Add user message with optional images
+            string[] images = Array.Empty<string>();
+            if (imageData is { Length: > 0 })
+            {
+                images = imageData.Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Select(url => url.Trim())
+                    .Where(url => !string.IsNullOrEmpty(url))
+                    .ToArray();
+            }
+
+            JObject userMsg = new()
+            {
+                ["role"] = "user"
+            };
+
+            if (images.Length > 0)
+            {
+                JArray contentArray =
+                [
+                    new JObject()
+                    {
+                        ["type"] = "text",
+                        ["text"] = userMessage
+                    }
+                ];
+
+                foreach (string image in images)
+                {
+                    contentArray.Add(new JObject()
+                    {
+                        ["type"] = "image_url",
+                        ["image_url"] = new JObject()
+                        {
+                            ["url"] = image
+                        }
+                    });
+                }
+
+                userMsg["content"] = contentArray;
+            }
+            else
+            {
+                userMsg["content"] = userMessage;
+            }
+
+            messages.Add(userMsg);
+
+            // Build request body
+            JObject requestBody = new()
+            {
+                ["model"] = modelId,
+                ["messages"] = messages,
+                ["max_tokens"] = maxTokens,
+                ["temperature"] = temperature
+            };
+
+            // Add tools if provided
+            if (tools != null && tools.Count > 0)
+            {
+                requestBody["tools"] = tools;
+                requestBody["tool_choice"] = "auto";
+            }
+
+            // Make the API call
+            using HttpRequestMessage request = new(HttpMethod.Post, "https://openrouter.ai/api/v1/chat/completions");
+            request.Headers.Add("Authorization", $"Bearer {apiKey}");
+            request.Headers.UserAgent.Clear();
+            request.Headers.UserAgent.ParseAdd("SwarmUI/1.0");
+            request.Content = new StringContent(requestBody.ToString(), Encoding.UTF8, "application/json");
+
+            HttpResponseMessage response = await httpClient.SendAsync(request);
+            string content = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Logs.Error($"OpenRouter API error: {response.StatusCode} - {content}");
+                string message = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.RequestEntityTooLarge
+                        => "Request too large: The attached image(s) or prompt exceed the provider's size limit. Try using smaller images or fewer images.",
+                    System.Net.HttpStatusCode.NotFound when content.Contains("No endpoints found matching your data policy")
+                        => "OpenRouter couldn't find a model that matches your privacy settings. Visit https://openrouter.ai/settings/privacy to enable providers for your account.",
+                    System.Net.HttpStatusCode.TooManyRequests
+                        => "OpenRouter rate limit hit. Wait a moment and try again.",
+                    _ => $"API request failed: {response.StatusCode}"
+                };
+                return new JObject()
+                {
+                    ["error"] = message,
+                    ["details"] = content
+                };
+            }
+
+            JObject result = JObject.Parse(content);
+            JToken messageToken = result["choices"]?[0]?["message"];
+            
+            if (messageToken == null)
+            {
+                return new JObject() { ["error"] = "Invalid response from OpenRouter API" };
+            }
+
+            string responseContent = messageToken["content"]?.ToString() ?? "";
+            JArray toolCalls = messageToken["tool_calls"] as JArray;
+
+            JObject responseObj = new()
+            {
+                ["content"] = responseContent
+            };
+
+            // Parse tool calls if present
+            if (toolCalls != null && toolCalls.Count > 0)
+            {
+                JArray parsedToolCalls = new();
+                foreach (JObject toolCall in toolCalls)
+                {
+                    JToken function = toolCall["function"];
+                    if (function != null)
+                    {
+                        string functionName = function["name"]?.ToString();
+                        string argumentsStr = function["arguments"]?.ToString();
+                        
+                        if (!string.IsNullOrWhiteSpace(functionName))
+                        {
+                            JObject parsedCall = new()
+                            {
+                                ["name"] = functionName
+                            };
+
+                            if (!string.IsNullOrWhiteSpace(argumentsStr))
+                            {
+                                try
+                                {
+                                    parsedCall["arguments"] = JObject.Parse(argumentsStr);
+                                }
+                                catch
+                                {
+                                    parsedCall["arguments"] = new JObject();
+                                }
+                            }
+                            else
+                            {
+                                parsedCall["arguments"] = new JObject();
+                            }
+
+                            parsedToolCalls.Add(parsedCall);
+                        }
+                    }
+                }
+
+                responseObj["tool_calls"] = parsedToolCalls;
+            }
+
+            return responseObj;
+        }
+        catch (Exception ex)
+        {
+            Logs.Error($"Error calling OpenRouter with tools: {ex}");
+            return new JObject() { ["error"] = $"Error calling LLM: {ex.Message}" };
         }
     }
 }

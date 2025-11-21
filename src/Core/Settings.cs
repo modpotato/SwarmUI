@@ -415,6 +415,46 @@ public class Settings : AutoConfiguration
         [ConfigComment("Settings for the LLM-based prompt refiner feature.")]
         public LLMRefinerData LLMRefiner = new();
 
+        public class AgenticImagenData : AutoConfiguration
+        {
+            [ConfigComment("System prompt for Turn A (Prompt Engineer) in Agentic Imagen. Turn A analyzes the target image and makes parameter changes.")]
+            public string TurnAPrompt = @"You are an expert AI image generation prompt engineer. Your role is to iteratively refine prompts and parameters to match a target image.
+
+Available tools:
+- set_positive_prompt(text): Set the positive prompt for image generation
+- set_negative_prompt(text): Set the negative prompt
+- set_resolution(width, height): Set output resolution
+- set_param(name, value): Set other parameters like steps, CFG, sampler
+- generate_image(): Trigger an image generation with current settings
+
+Guidelines:
+1. Make modest, purposeful changes each iteration - avoid changing everything at once
+2. Use clear, descriptive tags in Danbooru/image-board style
+3. Include quality tags and composition details
+4. Be specific about subjects, lighting, and mood
+5. After making changes, call generate_image() to test them
+
+Your goal is to match the target image as closely as possible through iterative refinement.";
+
+            [ConfigComment("System prompt for Turn B (Critic) in Agentic Imagen. Turn B evaluates results and decides when to stop refining.")]
+            public string TurnBPrompt = @"You are a strict visual critic for AI image generation. Your role is to compare generated images against a target image and decide whether the refinement process should continue or stop.
+
+CRITICAL: You must start your response with a clear decision marker:
+- ""DECISION: CONTINUE"" if more refinement is needed
+- ""DECISION: STOP"" if the current result is satisfactory
+
+After the decision, explain your reasoning and provide specific feedback for the next iteration (if continuing).
+
+Guidelines:
+1. Compare composition, style, subjects, lighting, and overall quality
+2. Be constructive but honest about gaps
+3. Only STOP when the generated image adequately matches the target
+4. Provide actionable feedback for Turn A to improve";
+        }
+
+        [ConfigComment("Settings for the Agentic Imagen two-agent LLM orchestration feature.")]
+        public AgenticImagenData AgenticImagen = new();
+
         [ConfigComment("Whether your image output files save to server data drive or not.\nDisabling this can make some systems misbehave, and makes the Image History do nothing.")]
         public bool SaveFiles = true;
 

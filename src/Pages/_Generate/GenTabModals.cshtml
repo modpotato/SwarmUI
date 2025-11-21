@@ -504,3 +504,86 @@
         <button type="button" class="btn btn-secondary basic-button translate" onclick="close_create_new_preset()">Cancel</button>
     </div>
 @WebUtil.ModalFooter()
+
+<!-- =================================== Agentic Imagen Floating Widget =================================== -->
+<div id="agentic_imagen_widget" class="agentic-imagen-widget" style="display: none;">
+    <div class="agentic-imagen-header" id="agentic_imagen_header" onmousedown="agenticImagen.startDrag(event)">
+        <span class="agentic-imagen-title">Agentic Imagen</span>
+        <div class="agentic-imagen-header-buttons">
+            <button class="agentic-imagen-header-btn" onclick="agenticImagen.toggleMinimize()" title="Minimize/Expand">_</button>
+            <button class="agentic-imagen-header-btn" onclick="agenticImagen.hide()" title="Close">&times;</button>
+        </div>
+    </div>
+    <div id="agentic_imagen_body" class="agentic-imagen-body">
+        <div class="agentic-imagen-error" id="agentic_imagen_error" style="display: none;"></div>
+        
+        <!-- Configuration Section (shown when idle) -->
+        <div id="agentic_imagen_config_section" class="agentic-imagen-section">
+            <h4 class="translate">Configuration</h4>
+            
+            <div class="agentic-imagen-form-group">
+                <label class="translate">Target Image:</label>
+                <div style="margin-bottom: 8px;">
+                    <input type="file" id="agentic_imagen_image_upload" accept="image/*" onchange="agenticImagen.handleImageUpload(event)" style="margin-bottom: 4px;">
+                    <div style="margin: 4px 0; color: #888; font-size: 0.9em;" class="translate">or</div>
+                    <input type="text" id="agentic_imagen_image_url" class="agentic-imagen-input" placeholder="Paste image URL..." onchange="agenticImagen.handleImageUrl()">
+                </div>
+                <div id="agentic_imagen_image_preview" class="agentic-imagen-image-preview">
+                    <div style="color: #888; font-style: italic;" class="translate">No image selected</div>
+                </div>
+                <button id="agentic_imagen_clear_image" class="agentic-imagen-btn-secondary translate" onclick="agenticImagen.clearImage()" style="display: none; margin-top: 4px;">Clear Image</button>
+            </div>
+
+            <div class="agentic-imagen-form-group">
+                <label for="agentic_imagen_tags" class="translate">Tags / Description (optional):</label>
+                <textarea id="agentic_imagen_tags" class="agentic-imagen-textarea" rows="2" placeholder="Enter tags or description for the target image..."></textarea>
+            </div>
+
+            <div class="agentic-imagen-form-group">
+                <label for="agentic_imagen_turn_a_model" class="translate">Turn A Model (Prompt Engineer):</label>
+                <select id="agentic_imagen_turn_a_model" class="agentic-imagen-select">
+                    <option value="">Loading models...</option>
+                </select>
+            </div>
+
+            <div class="agentic-imagen-form-group">
+                <label for="agentic_imagen_turn_b_model" class="translate">Turn B Model (Critic):</label>
+                <select id="agentic_imagen_turn_b_model" class="agentic-imagen-select">
+                    <option value="">Loading models...</option>
+                </select>
+            </div>
+
+            <div class="agentic-imagen-form-group">
+                <label for="agentic_imagen_max_iterations" class="translate">Max Iterations (cap, not target):</label>
+                <input type="number" id="agentic_imagen_max_iterations" class="agentic-imagen-input" value="5" min="1" max="20">
+                <div style="color: #888; font-size: 0.85em; margin-top: 4px;" class="translate">
+                    Turn B may stop earlier if satisfied. This is an upper bound.
+                </div>
+            </div>
+        </div>
+
+        <!-- Transcript Section (shown during and after run) -->
+        <div class="agentic-imagen-section">
+            <h4 class="translate">Chat Transcript</h4>
+            <div id="agentic_imagen_transcript" class="agentic-imagen-transcript"></div>
+        </div>
+
+        <!-- Results Section (shown when completed) -->
+        <div id="agentic_imagen_results_section" class="agentic-imagen-section" style="display: none;">
+            <h4 class="translate">Final Results</h4>
+            <div id="agentic_imagen_results_content"></div>
+        </div>
+    </div>
+    <div id="agentic_imagen_footer" class="agentic-imagen-footer">
+        <div class="agentic-imagen-status">
+            <span id="agentic_imagen_status_text" class="translate">Ready to start</span>
+            <span id="agentic_imagen_progress_text" style="margin-left: 10px; color: #888;"></span>
+        </div>
+        <div class="agentic-imagen-footer-buttons">
+            <button id="agentic_imagen_start_btn" class="agentic-imagen-btn-primary translate" onclick="agenticImagen.startRefinement()">Start Agentic Refinement</button>
+            <button id="agentic_imagen_cancel_btn" class="agentic-imagen-btn-danger translate" onclick="agenticImagen.cancel()" style="display: none;">Cancel</button>
+            <button id="agentic_imagen_apply_btn" class="agentic-imagen-btn-success translate" onclick="agenticImagen.applyToGenerateTab()" style="display: none;">Apply to Generate Tab</button>
+            <button id="agentic_imagen_apply_gen_btn" class="agentic-imagen-btn-success translate" onclick="agenticImagen.applyAndGenerate()" style="display: none;">Apply &amp; Generate</button>
+        </div>
+    </div>
+</div>
