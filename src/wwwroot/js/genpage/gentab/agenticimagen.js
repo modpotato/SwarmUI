@@ -665,28 +665,88 @@ Guidelines:
      * Call LLM with function calling support
      */
     async callLLMWithTools(modelId, systemPrompt, userMessage, tools) {
-        // This is a simplified version - actual implementation will use OpenRouter API
-        // For now, return mock data
-        console.log('Calling LLM with tools:', { modelId, systemPrompt, userMessage, tools });
-        
-        // TODO: Implement actual OpenRouter API call with function calling
-        return {
-            content: 'Mock Turn A response',
-            toolCalls: []
-        };
+        try {
+            // Format tools for OpenRouter API
+            let formattedTools = tools.map(tool => ({
+                type: 'function',
+                function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: tool.parameters
+                }
+            }));
+
+            // Collect image data if target image is available
+            let imageData = null;
+            if (this.targetImage && this.targetImage.dataUrl) {
+                imageData = [this.targetImage.dataUrl];
+            }
+
+            // Make the API call
+            let requestBody = {
+                modelId: modelId,
+                systemPrompt: systemPrompt,
+                userMessage: userMessage,
+                tools: formattedTools,
+                imageData: imageData,
+                temperature: 0.7,
+                maxTokens: 1000
+            };
+
+            let data = await new Promise((resolve, reject) => {
+                genericRequest('CallOpenRouterWithTools', requestBody, resolve, 0, reject);
+            });
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            return {
+                content: data.content || '',
+                toolCalls: data.tool_calls || []
+            };
+        } catch (error) {
+            console.error('Error calling LLM with tools:', error);
+            throw error;
+        }
     }
 
     /**
      * Call LLM without tools
      */
     async callLLM(modelId, systemPrompt, userMessage) {
-        // This is a simplified version
-        console.log('Calling LLM:', { modelId, systemPrompt, userMessage });
-        
-        // TODO: Implement actual OpenRouter API call
-        return {
-            content: 'DECISION: CONTINUE\n\nMock Turn B feedback'
-        };
+        try {
+            // Collect image data for Turn B (target + generated images)
+            let imageData = [];
+            if (this.targetImage && this.targetImage.dataUrl) {
+                imageData.push(this.targetImage.dataUrl);
+            }
+
+            // Make the API call
+            let requestBody = {
+                modelId: modelId,
+                systemPrompt: systemPrompt,
+                userMessage: userMessage,
+                imageData: imageData.length > 0 ? imageData : null,
+                temperature: 0.7,
+                maxTokens: 1000
+            };
+
+            let data = await new Promise((resolve, reject) => {
+                genericRequest('CallOpenRouterWithTools', requestBody, resolve, 0, reject);
+            });
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            return {
+                content: data.content || 'DECISION: CONTINUE\n\nNo response from model.'
+            };
+        } catch (error) {
+            console.error('Error calling LLM:', error);
+            throw error;
+        }
     }
 
     /**
@@ -772,9 +832,48 @@ Guidelines:
     async generateImages() {
         this.addTranscriptMessage('system', 'Generating image...');
         
-        // TODO: Implement actual image generation
-        // For now, return empty array
-        return [];
+        return new Promise((resolve, reject) => {
+            // Use the main generation handler
+            if (!mainGenHandler) {
+                reject(new Error('Generation handler not available'));
+                return;
+            }
+
+            // Track when generation completes
+            let completedImages = [];
+            let originalCallback = mainGenHandler.batchCallback;
+            
+            // Temporarily override the batch callback
+            mainGenHandler.batchCallback = (success, batch) => {
+                if (success) {
+                    completedImages = batch.map(img => img.src || img);
+                }
+                
+                // Restore original callback
+                mainGenHandler.batchCallback = originalCallback;
+                
+                // Call original callback if it exists
+                if (originalCallback) {
+                    originalCallback(success, batch);
+                }
+                
+                // Resolve our promise
+                if (success) {
+                    this.addTranscriptMessage('system', `Generated ${completedImages.length} image(s)`);
+                    resolve(completedImages);
+                } else {
+                    reject(new Error('Image generation failed'));
+                }
+            };
+
+            // Trigger generation
+            try {
+                mainGenHandler.doGenerate();
+            } catch (error) {
+                mainGenHandler.batchCallback = originalCallback;
+                reject(error);
+            }
+        });
     }
 
     /**
