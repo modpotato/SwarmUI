@@ -22,6 +22,10 @@ class AgenticImagen {
         this.turnAModel = null;
         this.turnBModel = null;
         
+        // Configurable system prompts (loaded from user settings)
+        this.turnASystemPrompt = null;
+        this.turnBSystemPrompt = null;
+        
         // UI state
         this.isVisible = false;
         this.isMinimized = false;
@@ -41,6 +45,27 @@ class AgenticImagen {
      */
     async init() {
         console.log('Initializing Agentic Imagen...');
+        
+        // Load configurable system prompts from user data
+        try {
+            let userData = await new Promise((resolve, reject) => {
+                genericRequest('GetMyUserData', {}, resolve, 0, reject);
+            });
+            
+            if (userData.agentic_imagen_prompts) {
+                this.turnASystemPrompt = userData.agentic_imagen_prompts.turn_a || this.getDefaultTurnAPrompt();
+                this.turnBSystemPrompt = userData.agentic_imagen_prompts.turn_b || this.getDefaultTurnBPrompt();
+            } else {
+                // Fallback to defaults if not available
+                this.turnASystemPrompt = this.getDefaultTurnAPrompt();
+                this.turnBSystemPrompt = this.getDefaultTurnBPrompt();
+            }
+        } catch (error) {
+            console.error('Error loading Agentic Imagen prompts:', error);
+            // Use defaults on error
+            this.turnASystemPrompt = this.getDefaultTurnAPrompt();
+            this.turnBSystemPrompt = this.getDefaultTurnBPrompt();
+        }
         
         // Load available models from OpenRouter
         try {
@@ -509,9 +534,9 @@ class AgenticImagen {
     }
 
     /**
-     * Build Turn A system prompt
+     * Get default Turn A system prompt (fallback)
      */
-    buildTurnASystemPrompt() {
+    getDefaultTurnAPrompt() {
         return `You are an expert AI image generation prompt engineer. Your role is to iteratively refine prompts and parameters to match a target image.
 
 Available tools:
@@ -529,6 +554,32 @@ Guidelines:
 5. After making changes, call generate_image() to test them
 
 Your goal is to match the target image as closely as possible through iterative refinement.`;
+    }
+
+    /**
+     * Get default Turn B system prompt (fallback)
+     */
+    getDefaultTurnBPrompt() {
+        return `You are a strict visual critic for AI image generation. Your role is to compare generated images against a target image and decide whether the refinement process should continue or stop.
+
+CRITICAL: You must start your response with a clear decision marker:
+- "DECISION: CONTINUE" if more refinement is needed
+- "DECISION: STOP" if the current result is satisfactory
+
+After the decision, explain your reasoning and provide specific feedback for the next iteration (if continuing).
+
+Guidelines:
+1. Compare composition, style, subjects, lighting, and overall quality
+2. Be constructive but honest about gaps
+3. Only STOP when the generated image adequately matches the target
+4. Provide actionable feedback for Turn A to improve`;
+    }
+
+    /**
+     * Build Turn A system prompt
+     */
+    buildTurnASystemPrompt() {
+        return this.turnASystemPrompt || this.getDefaultTurnAPrompt();
     }
 
     /**
@@ -551,19 +602,7 @@ Your goal is to match the target image as closely as possible through iterative 
      * Build Turn B system prompt
      */
     buildTurnBSystemPrompt() {
-        return `You are a strict visual critic for AI image generation. Your role is to compare generated images against a target image and decide whether the refinement process should continue or stop.
-
-CRITICAL: You must start your response with a clear decision marker:
-- "DECISION: CONTINUE" if more refinement is needed
-- "DECISION: STOP" if the current result is satisfactory
-
-After the decision, explain your reasoning and provide specific feedback for the next iteration (if continuing).
-
-Guidelines:
-1. Compare composition, style, subjects, lighting, and overall quality
-2. Be constructive but honest about gaps
-3. Only STOP when the generated image adequately matches the target
-4. Provide actionable feedback for Turn A to improve`;
+        return this.turnBSystemPrompt || this.getDefaultTurnBPrompt();
     }
 
     /**

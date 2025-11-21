@@ -151,7 +151,18 @@ Triggers an image generation with the current settings.
 
 ## System Prompts
 
-### Turn A System Prompt
+System prompts for Turn A and Turn B are now **configurable** through User Settings, similar to the Prompt LLM feature. You can customize these prompts to adjust agent behavior.
+
+### Configuration Location
+
+1. Go to **User Settings** in SwarmUI
+2. Navigate to **Agentic Imagen** settings section
+3. Edit **Turn A Prompt** and **Turn B Prompt** fields
+4. Save your changes
+
+The prompts will be loaded when the Agentic Imagen widget is opened.
+
+### Turn A System Prompt (Default)
 
 ```
 You are an expert AI image generation prompt engineer. Your role is to 
@@ -175,7 +186,7 @@ Your goal is to match the target image as closely as possible through
 iterative refinement.
 ```
 
-### Turn B System Prompt
+### Turn B System Prompt (Default)
 
 ```
 You are a strict visual critic for AI image generation. Your role is to 

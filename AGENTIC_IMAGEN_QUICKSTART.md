@@ -186,7 +186,25 @@ If results aren't perfect, adjust your tags or target image and run again.
 ### 💡 Learn from the Transcript
 Read what Turn A and Turn B are discussing - you'll learn what works!
 
+### 🔧 Customize Agent Prompts
+Go to User Settings → Agentic Imagen to customize Turn A and Turn B system prompts to better suit your needs!
+
 ## Advanced Usage
+
+### Customizing System Prompts
+
+You can customize how the agents behave by editing their system prompts:
+
+1. Go to **User Settings**
+2. Navigate to **Agentic Imagen** section
+3. Edit the **Turn A Prompt** to change how the Prompt Engineer thinks
+4. Edit the **Turn B Prompt** to change how the Critic evaluates
+5. Save and restart the widget
+
+This allows you to:
+- Adjust the agent's style (e.g., more conservative or aggressive changes)
+- Add specific instructions for your workflow
+- Emphasize particular aspects (e.g., focus more on composition vs. color)
 
 ### Different Models for Each Agent
 
