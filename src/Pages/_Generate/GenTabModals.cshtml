@@ -510,6 +510,7 @@
     <div class="agentic-imagen-header" id="agentic_imagen_header" onmousedown="agenticImagen.startDrag(event)">
         <span class="agentic-imagen-title">Agentic Imagen</span>
         <div class="agentic-imagen-header-buttons">
+            <button class="agentic-imagen-header-btn" onclick="agenticImagen.reset()" title="Reset" style="font-size: 0.9em; margin-right: 5px;">↺</button>
             <button class="agentic-imagen-header-btn" onclick="agenticImagen.toggleMinimize()" title="Minimize/Expand">_</button>
             <button class="agentic-imagen-header-btn" onclick="agenticImagen.hide()" title="Close">&times;</button>
         </div>
@@ -566,6 +567,14 @@
         <div class="agentic-imagen-section">
             <h4 class="translate">Chat Transcript</h4>
             <div id="agentic_imagen_transcript" class="agentic-imagen-transcript"></div>
+            
+            <!-- User Feedback Input -->
+            <div id="agentic_imagen_user_input_section" style="margin-top: 10px; display: none;">
+                <div style="display: flex; gap: 8px;">
+                    <textarea id="agentic_imagen_user_feedback" class="agentic-imagen-textarea" rows="1" placeholder="Provide feedback or guidance for the next iteration..." style="flex: 1;"></textarea>
+                    <button id="agentic_imagen_send_feedback" class="agentic-imagen-btn-secondary translate" onclick="agenticImagen.sendUserFeedback()">Send</button>
+                </div>
+            </div>
         </div>
 
         <!-- Results Section (shown when completed) -->

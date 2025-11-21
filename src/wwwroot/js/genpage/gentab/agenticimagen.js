@@ -38,6 +38,8 @@ class AgenticImagen {
         // Bind drag handlers once to avoid memory leaks
         this.boundOnDrag = this.onDrag.bind(this);
         this.boundStopDrag = this.stopDrag.bind(this);
+
+        this.pendingUserFeedback = null;
     }
 
     /**
@@ -613,6 +615,11 @@ Guidelines:
             message += `Previous iteration feedback from Turn B:\n${lastIter.turnB.content}\n\n`;
         }
 
+        if (this.pendingUserFeedback) {
+            message += `USER FEEDBACK / GUIDANCE: ${this.pendingUserFeedback}\n\n`;
+            this.pendingUserFeedback = null; // Clear after using
+        }
+
         message += 'Please analyze the target image and provide your next refinement step.';
         
         return message;
@@ -1057,7 +1064,8 @@ Guidelines:
             'turn-a': 'Prompt Engineer',
             'turn-b': 'Critic',
             'tool': 'Tool Use',
-            'error': 'Error'
+            'error': 'Error',
+            'user': 'User Feedback'
         }[type] || type;
 
         let icon = {
@@ -1065,7 +1073,8 @@ Guidelines:
             'turn-a': '🎨',
             'turn-b': '🧐',
             'tool': '🛠️',
-            'error': '❌'
+            'error': '❌',
+            'user': '👤'
         }[type] || '💬';
 
         // Handle tool calls specially
@@ -1134,6 +1143,7 @@ Guidelines:
         let applyGenBtn = document.getElementById('agentic_imagen_apply_gen_btn');
         let configSection = document.getElementById('agentic_imagen_config_section');
         let resultsSection = document.getElementById('agentic_imagen_results_section');
+        let userInputSection = document.getElementById('agentic_imagen_user_input_section');
 
         if (this.status === 'idle') {
             if (statusText) statusText.textContent = 'Ready to start';
@@ -1144,6 +1154,7 @@ Guidelines:
             if (applyGenBtn) applyGenBtn.style.display = 'none';
             if (configSection) configSection.style.display = 'block';
             if (resultsSection) resultsSection.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'none';
         } else if (this.status === 'running') {
             let turnText = this.currentTurn === 'A' ? 'Turn A thinking' : 
                           this.currentTurn === 'B' ? 'Turn B reviewing' : 'Processing';
@@ -1154,6 +1165,7 @@ Guidelines:
             if (applyBtn) applyBtn.style.display = 'none';
             if (applyGenBtn) applyGenBtn.style.display = 'none';
             if (configSection) configSection.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'block';
         } else if (this.status === 'completed') {
             if (statusText) statusText.textContent = 'Completed';
             if (progressText) progressText.textContent = `Finished after ${this.currentIteration} iterations`;
@@ -1163,12 +1175,14 @@ Guidelines:
             if (applyGenBtn) applyGenBtn.style.display = 'inline-block';
             if (configSection) configSection.style.display = 'none';
             if (resultsSection) resultsSection.style.display = 'block';
+            if (userInputSection) userInputSection.style.display = 'none';
             this.displayResults();
         } else if (this.status === 'error') {
             if (statusText) statusText.textContent = 'Error';
             if (progressText) progressText.textContent = '';
             if (startBtn) startBtn.disabled = false;
             if (cancelBtn) cancelBtn.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'none';
         }
     }
 
@@ -1205,6 +1219,55 @@ Guidelines:
             setTimeout(() => {
                 errorDiv.style.display = 'none';
             }, AgenticImagen.ERROR_DISPLAY_TIMEOUT_MS);
+        }
+    }
+
+    /**
+     * Reset the Agentic Imagen state
+     */
+    reset() {
+        if (this.status === 'running') {
+            this.cancel();
+        }
+
+        this.status = 'idle';
+        this.iterations = [];
+        this.currentIteration = 0;
+        this.finalConfig = null;
+        this.currentTurn = null;
+        this.pendingUserFeedback = null;
+        
+        // Clear UI
+        this.clearTranscript();
+        
+        let resultsDiv = document.getElementById('agentic_imagen_results_content');
+        if (resultsDiv) resultsDiv.innerHTML = '';
+        
+        let feedbackInput = document.getElementById('agentic_imagen_user_feedback');
+        if (feedbackInput) feedbackInput.value = '';
+
+        this.updateUI();
+        this.addTranscriptMessage('system', 'Session reset. Ready to start new refinement.');
+    }
+
+    /**
+     * Send user feedback
+     */
+    sendUserFeedback() {
+        let input = document.getElementById('agentic_imagen_user_feedback');
+        if (!input || !input.value.trim()) return;
+
+        let feedback = input.value.trim();
+        this.pendingUserFeedback = feedback;
+        
+        this.addTranscriptMessage('user', feedback);
+        input.value = '';
+        
+        // If idle, maybe we should start? For now just queue it.
+        if (this.status === 'idle') {
+            this.addTranscriptMessage('system', 'Feedback queued for next run.');
+        } else {
+            this.addTranscriptMessage('system', 'Feedback queued for next iteration.');
         }
     }
 }
