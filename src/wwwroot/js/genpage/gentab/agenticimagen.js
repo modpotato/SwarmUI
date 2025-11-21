@@ -408,6 +408,11 @@ class AgenticImagen {
         this.updateUI();
         this.clearTranscript();
         this.addTranscriptMessage('system', 'Starting Agentic Imagen refinement...');
+        
+        // If there was pending feedback, log it
+        if (this.pendingUserFeedback) {
+            this.addTranscriptMessage('user', this.pendingUserFeedback);
+        }
 
         try {
             await this.runIterationLoop();
@@ -1201,7 +1206,7 @@ Guidelines:
             if (applyGenBtn) applyGenBtn.style.display = 'none';
             if (configSection) configSection.style.display = 'block';
             if (resultsSection) resultsSection.style.display = 'none';
-            if (userInputSection) userInputSection.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'block';
         } else if (this.status === 'running') {
             let turnText = this.currentTurn === 'A' ? 'Turn A thinking' : 
                           this.currentTurn === 'B' ? 'Turn B reviewing' : 'Processing';
@@ -1222,14 +1227,14 @@ Guidelines:
             if (applyGenBtn) applyGenBtn.style.display = 'inline-block';
             if (configSection) configSection.style.display = 'none';
             if (resultsSection) resultsSection.style.display = 'block';
-            if (userInputSection) userInputSection.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'block';
             this.displayResults();
         } else if (this.status === 'error') {
             if (statusText) statusText.textContent = 'Error';
             if (progressText) progressText.textContent = '';
             if (startBtn) startBtn.disabled = false;
             if (cancelBtn) cancelBtn.style.display = 'none';
-            if (userInputSection) userInputSection.style.display = 'none';
+            if (userInputSection) userInputSection.style.display = 'block';
         }
     }
 
@@ -1282,7 +1287,7 @@ Guidelines:
         this.currentIteration = 0;
         this.finalConfig = null;
         this.currentTurn = null;
-        this.pendingUserFeedback = null;
+        // Do not clear pendingUserFeedback here, as user might have just typed it
         
         // Clear UI
         this.clearTranscript();
@@ -1291,8 +1296,8 @@ Guidelines:
         if (resultsDiv) resultsDiv.innerHTML = '';
         
         let feedbackInput = document.getElementById('agentic_imagen_user_feedback');
-        if (feedbackInput) feedbackInput.value = '';
-
+        // Do not clear feedback input here
+        
         this.updateUI();
         this.addTranscriptMessage('system', 'Session reset. Ready to start new refinement.');
     }
@@ -1313,6 +1318,8 @@ Guidelines:
         // If idle, maybe we should start? For now just queue it.
         if (this.status === 'idle') {
             this.addTranscriptMessage('system', 'Feedback queued for next run.');
+        } else if (this.status === 'completed') {
+            this.addTranscriptMessage('system', 'Feedback queued. Click "Start Agentic Refinement" to begin a new session with this feedback.');
         } else {
             this.addTranscriptMessage('system', 'Feedback queued for next iteration.');
         }
