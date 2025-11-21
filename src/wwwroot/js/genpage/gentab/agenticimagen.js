@@ -2,6 +2,12 @@
  * Agentic Imagen - Image-guided, two-agent LLM orchestration for iterative prompt refinement
  */
 class AgenticImagen {
+    // Constants
+    static MIN_RESOLUTION = 64;
+    static MAX_RESOLUTION = 2048;
+    static ERROR_DISPLAY_TIMEOUT_MS = 5000;
+    static TOOL_ARG_DISPLAY_LIMIT = 100;
+
     constructor() {
         this.status = 'idle'; // 'idle' | 'running' | 'completed' | 'error'
         this.targetImage = null; // { type: 'upload' | 'url', src: string, dataUrl: string }
@@ -24,6 +30,10 @@ class AgenticImagen {
         // Widget position
         this.position = { x: 100, y: 100 };
         this.size = { width: 600, height: 700 };
+
+        // Bind drag handlers once to avoid memory leaks
+        this.boundOnDrag = this.onDrag.bind(this);
+        this.boundStopDrag = this.stopDrag.bind(this);
     }
 
     /**
@@ -193,8 +203,8 @@ class AgenticImagen {
             initialY: rect.top
         };
 
-        document.addEventListener('mousemove', this.onDrag.bind(this));
-        document.addEventListener('mouseup', this.stopDrag.bind(this));
+        document.addEventListener('mousemove', this.boundOnDrag);
+        document.addEventListener('mouseup', this.boundStopDrag);
     }
 
     /**
@@ -219,8 +229,8 @@ class AgenticImagen {
      */
     stopDrag() {
         this.dragState = null;
-        document.removeEventListener('mousemove', this.onDrag.bind(this));
-        document.removeEventListener('mouseup', this.stopDrag.bind(this));
+        document.removeEventListener('mousemove', this.boundOnDrag);
+        document.removeEventListener('mouseup', this.boundStopDrag);
     }
 
     /**
@@ -461,7 +471,7 @@ class AgenticImagen {
         
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (let toolCall of response.toolCalls) {
-                this.addTranscriptMessage('tool', `Tool: ${toolCall.name}(${JSON.stringify(toolCall.arguments).substring(0, 100)}...)`);
+                this.addTranscriptMessage('tool', `Tool: ${toolCall.name}(${JSON.stringify(toolCall.arguments).substring(0, AgenticImagen.TOOL_ARG_DISPLAY_LIMIT)}...)`);
                 await this.executeToolCall(toolCall);
             }
         }
@@ -806,11 +816,11 @@ Guidelines:
         let heightInput = document.getElementById('input_height');
         
         if (widthInput) {
-            widthInput.value = Math.max(64, Math.min(2048, width));
+            widthInput.value = Math.max(AgenticImagen.MIN_RESOLUTION, Math.min(AgenticImagen.MAX_RESOLUTION, width));
             triggerChangeFor(widthInput);
         }
         if (heightInput) {
-            heightInput.value = Math.max(64, Math.min(2048, height));
+            heightInput.value = Math.max(AgenticImagen.MIN_RESOLUTION, Math.min(AgenticImagen.MAX_RESOLUTION, height));
             triggerChangeFor(heightInput);
         }
     }
@@ -831,6 +841,9 @@ Guidelines:
      */
     async generateImages() {
         this.addTranscriptMessage('system', 'Generating image...');
+        
+        // Capture self to ensure proper context in callbacks
+        const self = this;
         
         return new Promise((resolve, reject) => {
             // Use the main generation handler
@@ -859,7 +872,7 @@ Guidelines:
                 
                 // Resolve our promise
                 if (success) {
-                    this.addTranscriptMessage('system', `Generated ${completedImages.length} image(s)`);
+                    self.addTranscriptMessage('system', `Generated ${completedImages.length} image(s)`);
                     resolve(completedImages);
                 } else {
                     reject(new Error('Image generation failed'));
@@ -1041,7 +1054,7 @@ Guidelines:
             errorDiv.style.display = 'block';
             setTimeout(() => {
                 errorDiv.style.display = 'none';
-            }, 5000);
+            }, AgenticImagen.ERROR_DISPLAY_TIMEOUT_MS);
         }
     }
 }
