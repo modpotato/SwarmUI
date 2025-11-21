@@ -533,6 +533,25 @@ class AgenticImagen {
     }
 
     /**
+     * Convert image URL to Data URL
+     */
+    async imagePathToDataURL(url) {
+        try {
+            let response = await fetch(url);
+            let blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                let reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        } catch (e) {
+            console.error("Failed to convert image to data URL:", e);
+            return null;
+        }
+    }
+
+    /**
      * Execute Turn B (Critic)
      */
     async executeTurnB(generatedImages) {
@@ -541,10 +560,28 @@ class AgenticImagen {
         let systemPrompt = this.buildTurnBSystemPrompt();
         let userMessage = this.buildTurnBUserMessage(generatedImages);
 
+        // Convert generated images to Data URLs
+        let additionalImages = [];
+        if (generatedImages && generatedImages.length > 0) {
+            for (let imgPath of generatedImages) {
+                // Ensure path is accessible
+                let url = imgPath;
+                if (!url.startsWith('http') && !url.startsWith('data:')) {
+                    url = 'View/' + url;
+                }
+                
+                let dataUrl = await this.imagePathToDataURL(url);
+                if (dataUrl) {
+                    additionalImages.push(dataUrl);
+                }
+            }
+        }
+
         let response = await this.callLLM(
             this.turnBModel,
             systemPrompt,
-            userMessage
+            userMessage,
+            additionalImages
         );
 
         if (response.content) {
@@ -855,12 +892,16 @@ Guidelines:
     /**
      * Call LLM without tools
      */
-    async callLLM(modelId, systemPrompt, userMessage) {
+    async callLLM(modelId, systemPrompt, userMessage, additionalImages = null) {
         try {
             // Collect image data for Turn B (target + generated images)
             let imageData = [];
             if (this.targetImage && this.targetImage.dataUrl) {
                 imageData.push(this.targetImage.dataUrl);
+            }
+
+            if (additionalImages && additionalImages.length > 0) {
+                imageData = imageData.concat(additionalImages);
             }
 
             // Make the API call
