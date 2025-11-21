@@ -426,12 +426,15 @@ class AgenticImagen {
             // Turn A: Prompt Engineer
             this.currentTurn = 'A';
             this.updateUI();
+            this.showThinking('A');
             
             try {
                 iteration.turnA = await this.executeTurnA();
             } catch (error) {
                 this.addTranscriptMessage('error', `Turn A failed: ${error.message}`);
                 throw error;
+            } finally {
+                this.hideThinking();
             }
 
             // Generate image if Turn A made changes
@@ -450,6 +453,7 @@ class AgenticImagen {
             // Turn B: Critic
             this.currentTurn = 'B';
             this.updateUI();
+            this.showThinking('B');
             
             try {
                 iteration.turnB = await this.executeTurnB(iteration.generatedImages);
@@ -457,6 +461,8 @@ class AgenticImagen {
             } catch (error) {
                 this.addTranscriptMessage('error', `Turn B failed: ${error.message}`);
                 throw error;
+            } finally {
+                this.hideThinking();
             }
 
             this.iterations.push(iteration);
@@ -480,7 +486,7 @@ class AgenticImagen {
      * Execute Turn A (Prompt Engineer)
      */
     async executeTurnA() {
-        this.addTranscriptMessage('turn-a', 'Turn A: Analyzing target and crafting prompts...');
+        this.addTranscriptMessage('turn-a', 'Analyzing target and crafting prompts...');
 
         let systemPrompt = this.buildTurnASystemPrompt();
         let userMessage = this.buildTurnAUserMessage();
@@ -492,7 +498,7 @@ class AgenticImagen {
             this.getTurnATools()
         );
 
-        this.addTranscriptMessage('turn-a', `Turn A: ${response.content}`);
+        this.addTranscriptMessage('turn-a', response.content);
         
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (let toolCall of response.toolCalls) {
@@ -511,7 +517,7 @@ class AgenticImagen {
      * Execute Turn B (Critic)
      */
     async executeTurnB(generatedImages) {
-        this.addTranscriptMessage('turn-b', 'Turn B: Evaluating generated images...');
+        this.addTranscriptMessage('turn-b', 'Evaluating generated images...');
 
         let systemPrompt = this.buildTurnBSystemPrompt();
         let userMessage = this.buildTurnBUserMessage(generatedImages);
@@ -522,7 +528,7 @@ class AgenticImagen {
             userMessage
         );
 
-        this.addTranscriptMessage('turn-b', `Turn B: ${response.content}`);
+        this.addTranscriptMessage('turn-b', response.content);
 
         // Parse decision
         let decision = this.parseTurnBDecision(response.content);
@@ -992,6 +998,46 @@ Guidelines:
     }
 
     /**
+     * Show thinking indicator
+     */
+    showThinking(turn) {
+        let transcript = document.getElementById('agentic_imagen_transcript');
+        if (!transcript) return;
+
+        // Remove existing thinking bubble if any
+        this.hideThinking();
+
+        let thinkingDiv = document.createElement('div');
+        thinkingDiv.id = 'agentic_imagen_thinking';
+        thinkingDiv.className = 'agentic-imagen-message agentic-imagen-message-thinking';
+        
+        let label = turn === 'A' ? 'Prompt Engineer is thinking...' : 'Critic is reviewing...';
+        
+        thinkingDiv.innerHTML = `
+            <div class="agentic-imagen-message-header">
+                <span class="agentic-imagen-message-icon">🤔</span>
+                <span class="agentic-imagen-message-label">${label}</span>
+            </div>
+            <div class="agentic-imagen-thinking-dots">
+                <span style="animation-delay: 0s">.</span><span style="animation-delay: 0.2s">.</span><span style="animation-delay: 0.4s">.</span>
+            </div>
+        `;
+
+        transcript.appendChild(thinkingDiv);
+        transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    /**
+     * Hide thinking indicator
+     */
+    hideThinking() {
+        let thinkingDiv = document.getElementById('agentic_imagen_thinking');
+        if (thinkingDiv) {
+            thinkingDiv.remove();
+        }
+    }
+
+    /**
      * Add message to chat transcript
      */
     addTranscriptMessage(type, content) {
@@ -1003,16 +1049,59 @@ Guidelines:
         
         let typeLabel = {
             'system': 'System',
-            'turn-a': 'Turn A (Prompt Engineer)',
-            'turn-b': 'Turn B (Critic)',
-            'tool': 'Tool Call',
+            'turn-a': 'Prompt Engineer',
+            'turn-b': 'Critic',
+            'tool': 'Tool Use',
             'error': 'Error'
         }[type] || type;
 
-        messageDiv.innerHTML = `
-            <div class="agentic-imagen-message-label">${typeLabel}</div>
-            <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
-        `;
+        let icon = {
+            'system': '⚙️',
+            'turn-a': '🎨',
+            'turn-b': '🧐',
+            'tool': '🛠️',
+            'error': '❌'
+        }[type] || '💬';
+
+        // Handle tool calls specially
+        if (type === 'tool') {
+            let match = content.match(/^Tool: (\w+)\((.*)\)$/s);
+            if (match) {
+                let toolName = match[1];
+                let toolArgs = match[2];
+                
+                messageDiv.innerHTML = `
+                    <div class="agentic-imagen-message-header">
+                        <span class="agentic-imagen-message-icon">${icon}</span>
+                        <span class="agentic-imagen-message-label">${typeLabel}</span>
+                        <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <details class="agentic-imagen-tool-details">
+                        <summary>Used tool: <strong>${escapeHtml(toolName)}</strong></summary>
+                        <div class="agentic-imagen-tool-args"><code>${escapeHtml(toolArgs)}</code></div>
+                    </details>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="agentic-imagen-message-header">
+                        <span class="agentic-imagen-message-icon">${icon}</span>
+                        <span class="agentic-imagen-message-label">${typeLabel}</span>
+                        <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+                `;
+            }
+        } else {
+            // Regular messages
+            messageDiv.innerHTML = `
+                <div class="agentic-imagen-message-header">
+                    <span class="agentic-imagen-message-icon">${icon}</span>
+                    <span class="agentic-imagen-message-label">${typeLabel}</span>
+                    <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+            `;
+        }
 
         transcript.appendChild(messageDiv);
         transcript.scrollTop = transcript.scrollHeight;

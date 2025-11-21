@@ -1802,49 +1802,105 @@ body {
     border: 1px solid var(--button-border, #444);
     border-radius: 4px;
     padding: 10px;
-    font-size: 0.85em;
+    font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .agentic-imagen-message {
-    margin-bottom: 12px;
-    padding: 8px;
-    border-left: 3px solid #666;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--card-background, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--button-border, #444);
+    position: relative;
 }
 
 .agentic-imagen-message-system {
-    border-left-color: #888;
+    border-left: 4px solid #888;
+    background: var(--main-background, #1a1a1a);
 }
 
 .agentic-imagen-message-turn-a {
-    border-left-color: #4a9eff;
+    border-left: 4px solid #4a9eff;
+    background: linear-gradient(90deg, rgba(74, 158, 255, 0.05) 0%, transparent 100%);
 }
 
 .agentic-imagen-message-turn-b {
-    border-left-color: #ffa94a;
+    border-left: 4px solid #ffa94a;
+    background: linear-gradient(90deg, rgba(255, 169, 74, 0.05) 0%, transparent 100%);
 }
 
 .agentic-imagen-message-tool {
-    border-left-color: #9b59b6;
+    border-left: 4px solid #9b59b6;
+    background: var(--main-background, #1a1a1a);
 }
 
 .agentic-imagen-message-error {
-    border-left-color: #e74c3c;
+    border-left: 4px solid #e74c3c;
     background: rgba(231, 76, 60, 0.1);
+}
+
+.agentic-imagen-message-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.agentic-imagen-message-icon {
+    font-size: 1.2em;
 }
 
 .agentic-imagen-message-label {
     font-weight: 600;
-    margin-bottom: 4px;
-    font-size: 0.9em;
-    opacity: 0.8;
+    font-size: 0.95em;
+    color: var(--text-color, #fff);
+}
+
+.agentic-imagen-message-time {
+    margin-left: auto;
+    font-size: 0.8em;
+    color: var(--text-muted, #888);
 }
 
 .agentic-imagen-message-content {
-    line-height: 1.4;
+    line-height: 1.5;
     white-space: pre-wrap;
     word-wrap: break-word;
+    color: var(--text-color, #ddd);
+}
+
+.agentic-imagen-tool-details {
+    margin-top: 4px;
+}
+
+.agentic-imagen-tool-details summary {
+    cursor: pointer;
+    color: var(--primary-color, #4a9eff);
+    font-weight: 500;
+    user-select: none;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.agentic-imagen-tool-details summary:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.agentic-imagen-tool-args {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    color: #ccc;
 }
 
 .agentic-imagen-error {
@@ -1912,4 +1968,23 @@ body {
 .agentic-imagen-btn-danger:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+.agentic-imagen-thinking-dots {
+    font-size: 1.5em;
+    line-height: 0.5;
+    padding-left: 10px;
+    color: var(--text-muted, #888);
+}
+
+.agentic-imagen-thinking-dots span {
+    animation: agentic-imagen-dots 1.4s infinite;
+    opacity: 0;
+    display: inline-block;
+    margin: 0 2px;
+}
+
+@keyframes agentic-imagen-dots {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
 }
