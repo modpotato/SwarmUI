@@ -82,17 +82,29 @@ public static class AdminAPI
                 typeName = typeName == "LIST" ? "LIST" : "DROPDOWN";
                 val_names = data.Field.GetCustomAttribute<SettingsOptionsAttribute>()?.Names ?? null;
             }
-            output[key] = new JObject()
+            bool isGroup = data.IsSection;
+            JToken valueToken = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(val));
+            JToken defaultToken = null;
+            if (!isGroup)
+            {
+                defaultToken = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(defaultVal));
+            }
+
+            JObject entry = new()
             {
                 ["type"] = typeName.ToLowerFast(),
                 ["name"] = data.Name,
-                ["value"] = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(val)),
-                ["default_value"] = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(defaultVal)),
+                ["value"] = valueToken,
                 ["description"] = data.Field.GetCustomAttribute<AutoConfiguration.ConfigComment>()?.Comments ?? "",
                 ["values"] = vals == null ? null : new JArray(vals),
                 ["value_names"] = val_names == null ? null : new JArray(val_names),
                 ["is_secret"] = isSecret
             };
+            if (defaultToken is not null)
+            {
+                entry["default_value"] = defaultToken;
+            }
+            output[key] = entry;
         }
         return output;
     }
