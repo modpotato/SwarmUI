@@ -498,11 +498,13 @@ class AgenticImagen {
             this.getTurnATools()
         );
 
-        this.addTranscriptMessage('turn-a', response.content);
+        if (response.content) {
+            this.addTranscriptMessage('turn-a', response.content);
+        }
         
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (let toolCall of response.toolCalls) {
-                this.addTranscriptMessage('tool', `Tool: ${toolCall.name}(${JSON.stringify(toolCall.arguments).substring(0, AgenticImagen.TOOL_ARG_DISPLAY_LIMIT)}...)`);
+                this.addTranscriptMessage('tool', `Tool: ${toolCall.name}(${JSON.stringify(toolCall.arguments)})`);
                 await this.executeToolCall(toolCall);
             }
         }
@@ -528,7 +530,9 @@ class AgenticImagen {
             userMessage
         );
 
-        this.addTranscriptMessage('turn-b', response.content);
+        if (response.content) {
+            this.addTranscriptMessage('turn-b', response.content);
+        }
 
         // Parse decision
         let decision = this.parseTurnBDecision(response.content);
@@ -916,28 +920,29 @@ Guidelines:
 
             // Track when generation completes
             let completedImages = [];
-            let originalCallback = mainGenHandler.batchCallback;
+            let originalHandleData = mainGenHandler.internalHandleData;
             
-            // Temporarily override the batch callback
-            mainGenHandler.batchCallback = (success, batch) => {
-                if (success) {
-                    completedImages = batch.map(img => img.src || img);
+            // Temporarily override the internal data handler to track progress
+            mainGenHandler.internalHandleData = function(data, images, discardable, timeLastGenHit, actualInput, socketId, socket, isPreview) {
+                // Call original handler first to ensure UI updates
+                try {
+                    originalHandleData.apply(this, arguments);
+                } catch (e) {
+                    console.error("Error in original handle data:", e);
                 }
                 
-                // Restore original callback
-                mainGenHandler.batchCallback = originalCallback;
-                
-                // Call original callback if it exists
-                if (originalCallback) {
-                    originalCallback(success, batch);
-                }
-                
-                // Resolve our promise
-                if (success) {
+                // Check for completion (socket close intention)
+                if ('socket_intention' in data && data.socket_intention == 'close') {
+                    // Restore original handler
+                    mainGenHandler.internalHandleData = originalHandleData;
+                    
+                    // Resolve our promise
                     self.addTranscriptMessage('system', `Generated ${completedImages.length} image(s)`);
                     resolve(completedImages);
-                } else {
-                    reject(new Error('Image generation failed'));
+                }
+                // Check for successful image result (not preview)
+                else if (data.image && !isPreview) {
+                    completedImages.push(data.image);
                 }
             };
 
@@ -945,7 +950,7 @@ Guidelines:
             try {
                 mainGenHandler.doGenerate();
             } catch (error) {
-                mainGenHandler.batchCallback = originalCallback;
+                mainGenHandler.internalHandleData = originalHandleData;
                 reject(error);
             }
         });
