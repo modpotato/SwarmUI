@@ -485,6 +485,10 @@ class PromptPlusButton {
             this.autoHideMenu();
             promptLLM.openModal();
         }});
+        buttons.push({ key: 'agentic_imagen', key_html: 'Agentic Imagen', title: "Image-guided iterative prompt refinement with two-agent LLM orchestration", action: () => {
+            this.autoHideMenu();
+            agenticImagen.toggle();
+        }});
         buttons.push({ key: 'segment', key_html: 'Auto Segment Refinement', title: "Automatically segment and refine part of an image (eg clean up a face)", action: () => {
             this.autoHideMenu();
             this.segmentModalClear();
