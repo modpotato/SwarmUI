@@ -85,6 +85,16 @@ class AgenticImagen {
         } catch (error) {
             console.error('Error loading models for Agentic Imagen:', error);
         }
+
+        // Restore LoRA toggle state if saved
+        let enableLoras = localStorage.getItem('agentic_imagen_enable_loras') === 'true';
+        let loraToggle = document.getElementById('agentic_imagen_enable_loras');
+        if (loraToggle) {
+            loraToggle.checked = enableLoras;
+            loraToggle.addEventListener('change', () => {
+                localStorage.setItem('agentic_imagen_enable_loras', loraToggle.checked);
+            });
+        }
     }
 
     /**
@@ -588,6 +598,34 @@ Guidelines:
     }
 
     /**
+     * Get available LoRAs formatted for the prompt
+     */
+    getLoraListForPrompt() {
+        if (!gen_param_types) return '';
+
+        let loraParam = gen_param_types.find(p => p.id === 'loras');
+        if (!loraParam || !loraParam.values) return '';
+
+        let loras = loraParam.values;
+        if (loras.length === 0) return '';
+
+        // Limit to avoid token overflow if there are too many
+        let displayLoras = loras.slice(0, 200); 
+        
+        let list = displayLoras.map(lora => {
+            // Note: We don't have trigger words readily available in the simple list.
+            // If we did, we'd append them here.
+            return `- ${lora}: <lora:${lora}:1.0>`;
+        }).join('\n');
+
+        if (loras.length > 200) {
+            list += `\n... and ${loras.length - 200} more LoRAs available.`;
+        }
+
+        return list;
+    }
+
+    /**
      * Build Turn A system prompt
      */
     buildTurnASystemPrompt() {
@@ -598,6 +636,15 @@ Guidelines:
             let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
             if (knowledgeText.trim()) {
                 prompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
+            }
+        }
+
+        // Add LoRA knowledge if enabled
+        let enableLoras = document.getElementById('agentic_imagen_enable_loras')?.checked;
+        if (enableLoras) {
+            let loraList = this.getLoraListForPrompt();
+            if (loraList) {
+                prompt += `\n\n**Available LoRAs:**\nYou can use the following LoRAs by adding the syntax <lora:name:strength> to the prompt. Strength is usually between 0.5 and 1.0.\n${loraList}`;
             }
         }
         
