@@ -108,16 +108,17 @@ Sets the negative prompt to avoid unwanted elements.
 }
 ```
 
-### set_resolution(width, height)
-Sets the output image resolution (64-2048 pixels).
+### set_aspect_ratio(ratio)
+Sets the aspect ratio for the image.
+
+**Options:** 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21
 
 **Example:**
 ```json
 {
-  "name": "set_resolution",
+  "name": "set_aspect_ratio",
   "arguments": {
-    "width": 512,
-    "height": 768
+    "ratio": "16:9"
   }
 }
 ```
@@ -171,7 +172,7 @@ iteratively refine prompts and parameters to match a target image.
 Available tools:
 - set_positive_prompt(text): Set the positive prompt for image generation
 - set_negative_prompt(text): Set the negative prompt
-- set_resolution(width, height): Set output resolution
+- set_aspect_ratio(ratio): Set the aspect ratio for the image (options: 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21)
 - set_param(name, value): Set other parameters like steps, CFG, sampler
 - generate_image(): Trigger an image generation with current settings
 
@@ -226,7 +227,7 @@ Guidelines:
 
 4. **Iteration 1**
    - Turn A analyzes target, sets initial prompt: "masterpiece, best quality, 1girl, portrait, blue eyes, professional lighting"
-   - Calls `set_resolution(512, 768)`
+   - Calls `set_aspect_ratio("3:4")`
    - Calls `generate_image()`
    - System generates image
    - Turn B reviews: "DECISION: CONTINUE - Face structure needs more detail, lighting is good"

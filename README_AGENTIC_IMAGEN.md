@@ -144,7 +144,7 @@ Evaluation → Turn B Decides
 ```javascript
 set_positive_prompt(text)     // Update main prompt
 set_negative_prompt(text)     // Update negative prompt
-set_resolution(width, height) // Change image size
+set_aspect_ratio(ratio)       // Set aspect ratio (1:1, 4:3, etc.)
 set_param(name, value)        // Modify parameters
 generate_image()              // Trigger generation
 ```

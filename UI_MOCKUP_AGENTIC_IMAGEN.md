@@ -61,7 +61,7 @@ This document provides a text-based visualization of the Agentic Imagen widget U
 │ │ ║ Tool: set_positive_prompt({"text": "master..."})  ║ │   │
 │ │ ║                                                   ║ │   │
 │ │ ║ Tool Call                                         ║ │   │
-│ │ ║ Tool: set_resolution({"width": 512, "height...}) ║ │   │
+│ │ ║ Tool: set_aspect_ratio({"ratio": "3:4"})          ║ │   │
 │ │ ║                                                   ║ │   │
 │ │ ║ Tool Call                                         ║ │   │
 │ │ ║ Tool: generate_image({})                          ║ │   │

@@ -542,7 +542,7 @@ class AgenticImagen {
 Available tools:
 - set_positive_prompt(text): Set the positive prompt for image generation
 - set_negative_prompt(text): Set the negative prompt
-- set_resolution(width, height): Set output resolution
+- set_aspect_ratio(ratio): Set the aspect ratio for the image (options: 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21)
 - set_param(name, value): Set other parameters like steps, CFG, sampler
 - generate_image(): Trigger an image generation with current settings
 
