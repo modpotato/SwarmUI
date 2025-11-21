@@ -579,7 +579,17 @@ Guidelines:
      * Build Turn A system prompt
      */
     buildTurnASystemPrompt() {
-        return this.turnASystemPrompt || this.getDefaultTurnAPrompt();
+        let prompt = this.turnASystemPrompt || this.getDefaultTurnAPrompt();
+        
+        // Add shared knowledge if enabled
+        if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
+            let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
+            if (knowledgeText.trim()) {
+                prompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
+            }
+        }
+        
+        return prompt;
     }
 
     /**
@@ -602,7 +612,17 @@ Guidelines:
      * Build Turn B system prompt
      */
     buildTurnBSystemPrompt() {
-        return this.turnBSystemPrompt || this.getDefaultTurnBPrompt();
+        let prompt = this.turnBSystemPrompt || this.getDefaultTurnBPrompt();
+        
+        // Add shared knowledge if enabled
+        if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
+            let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
+            if (knowledgeText.trim()) {
+                prompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
+            }
+        }
+        
+        return prompt;
     }
 
     /**

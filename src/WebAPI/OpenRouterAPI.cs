@@ -152,6 +152,12 @@ public static class OpenRouterAPI
                     : fallbackPrompt;
             }
 
+            // Append shared knowledge if enabled
+            if (session.User.Settings?.SharedKnowledge?.EnableSharedKnowledge == true && !string.IsNullOrWhiteSpace(session.User.Settings.SharedKnowledge.KnowledgeText))
+            {
+                systemPrompt += "\n\n**Shared Knowledge:**\n" + session.User.Settings.SharedKnowledge.KnowledgeText.Trim();
+            }
+
             JArray messages = new()
             {
                 new JObject()

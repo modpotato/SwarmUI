@@ -1444,6 +1444,14 @@ class PromptLLM {
             basePrompt += '\nYou may suggest appropriate LoRAs using the syntax <lora:name> when relevant to the prompt.';
         }
 
+        // Add shared knowledge if enabled
+        if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
+            let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
+            if (knowledgeText.trim()) {
+                basePrompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
+            }
+        }
+
         return basePrompt;
     }
 

@@ -455,6 +455,18 @@ Guidelines:
         [ConfigComment("Settings for the Agentic Imagen two-agent LLM orchestration feature.")]
         public AgenticImagenData AgenticImagen = new();
 
+        public class SharedKnowledgeData : AutoConfiguration
+        {
+            [ConfigComment("Text containing shared knowledge to append to LLM prompts. This can include dictionary-style info, suggested tags, etc.")]
+            public string KnowledgeText = "";
+
+            [ConfigComment("If enabled, the shared knowledge will be appended to prompts sent to Prompt LLM and Agentic Imagen.")]
+            public bool EnableSharedKnowledge = false;
+        }
+
+        [ConfigComment("Settings for shared knowledge feature.")]
+        public SharedKnowledgeData SharedKnowledge = new();
+
         [ConfigComment("Whether your image output files save to server data drive or not.\nDisabling this can make some systems misbehave, and makes the Image History do nothing.")]
         public bool SaveFiles = true;
 
