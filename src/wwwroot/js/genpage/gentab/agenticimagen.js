@@ -676,15 +676,18 @@ Guidelines:
                 }
             },
             {
-                name: 'set_resolution',
-                description: 'Set output resolution (width and height)',
+                name: 'set_aspect_ratio',
+                description: 'Set the aspect ratio for the image',
                 parameters: {
                     type: 'object',
                     properties: {
-                        width: { type: 'number', description: 'Width in pixels' },
-                        height: { type: 'number', description: 'Height in pixels' }
+                        ratio: { 
+                            type: 'string', 
+                            description: 'The aspect ratio to use. Options: 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21',
+                            enum: ["1:1", "4:3", "3:2", "8:5", "16:9", "21:9", "3:4", "2:3", "5:8", "9:16", "9:21"]
+                        }
                     },
-                    required: ['width', 'height']
+                    required: ['ratio']
                 }
             },
             {
@@ -811,8 +814,8 @@ Guidelines:
             case 'set_negative_prompt':
                 this.setNegativePrompt(args.text);
                 break;
-            case 'set_resolution':
-                this.setResolution(args.width, args.height);
+            case 'set_aspect_ratio':
+                this.setAspectRatio(args.ratio);
                 break;
             case 'set_param':
                 this.setParam(args.name, args.value);
@@ -848,19 +851,13 @@ Guidelines:
     }
 
     /**
-     * Set resolution in Generate tab
+     * Set aspect ratio in Generate tab
      */
-    setResolution(width, height) {
-        let widthInput = document.getElementById('input_width');
-        let heightInput = document.getElementById('input_height');
-        
-        if (widthInput) {
-            widthInput.value = Math.max(AgenticImagen.MIN_RESOLUTION, Math.min(AgenticImagen.MAX_RESOLUTION, width));
-            triggerChangeFor(widthInput);
-        }
-        if (heightInput) {
-            heightInput.value = Math.max(AgenticImagen.MIN_RESOLUTION, Math.min(AgenticImagen.MAX_RESOLUTION, height));
-            triggerChangeFor(heightInput);
+    setAspectRatio(ratio) {
+        let aspectInput = document.getElementById('input_aspectratio');
+        if (aspectInput) {
+            aspectInput.value = ratio;
+            triggerChangeFor(aspectInput);
         }
     }
 
