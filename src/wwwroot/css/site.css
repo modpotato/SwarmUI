@@ -265,6 +265,16 @@ body {
     margin-bottom: 1px;
     white-space: nowrap;
 }
+.auto-input-name.auto-input-name-with-reset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.auto-input-reset-btn {
+    font-size: 0.7rem;
+    padding: 0.05rem 0.4rem;
+    line-height: 1.2;
+}
 .auto-input-description {
     display: inline-block;
     font-size: 80%;

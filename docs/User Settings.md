@@ -2,6 +2,8 @@
 
 (TODO: general info about settings)
 
+Every editable option in the in-app settings UI now includes a **Reset to Default** button. Use this to refill the field with the shipped default value, then click **Save User Settings** to apply the change.
+
 ## Path Format
 
 `User -> OutpathBuilder -> Format` accepts the following format keys:

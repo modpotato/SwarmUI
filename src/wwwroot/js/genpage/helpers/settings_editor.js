@@ -24,6 +24,77 @@ function isSettingWrongLooking(id, value) {
     return false;
 }
 
+function getListValuesFromStoredString(value) {
+    if (Array.isArray(value)) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        return value.split('||').map(v => v.trim()).filter(v => v.length > 0);
+    }
+    return value == null ? [] : [value];
+}
+
+function setSettingElementValue(elem, value) {
+    if (!elem) {
+        return;
+    }
+    if (elem.type === 'checkbox') {
+        elem.checked = !!value;
+        return;
+    }
+    if (elem.tagName === 'SELECT' && elem.multiple) {
+        let desired = new Set(getListValuesFromStoredString(value));
+        for (let option of elem.options) {
+            option.selected = desired.has(option.value);
+        }
+        return;
+    }
+    if (elem.tagName === 'SELECT') {
+        elem.value = value ?? '';
+        return;
+    }
+    elem.value = value ?? '';
+}
+
+function resetSettingToDefault(prefix, key, tracker) {
+    let info = tracker.known[key];
+    if (!info || typeof info.default_value === 'undefined') {
+        return;
+    }
+    let elem = document.getElementById(prefix + key);
+    if (!elem) {
+        return;
+    }
+    setSettingElementValue(elem, info.default_value);
+    triggerChangeFor(elem);
+}
+
+function attachResetButton(elem, prefix, key, tracker) {
+    if (!elem) {
+        return;
+    }
+    let info = tracker.known[key];
+    if (!info || typeof info.default_value === 'undefined' || info.is_secret) {
+        return;
+    }
+    let container = findParentOfClass(elem, 'auto-input');
+    if (!container || container.dataset.hasResetButton) {
+        return;
+    }
+    let label = container.querySelector('.auto-input-name');
+    if (!label) {
+        return;
+    }
+    let button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'basic-button auto-input-reset-btn translate';
+    button.innerText = 'Reset to Default';
+    button.addEventListener('click', () => resetSettingToDefault(prefix, key, tracker));
+    label.classList.add('auto-input-name-with-reset');
+    label.appendChild(button);
+    container.dataset.hasResetButton = 'true';
+}
+
 function buildSettingsMenu(container, data, prefix, tracker) {
     let content = '';
     let runnables = [];
@@ -67,6 +138,7 @@ function buildSettingsMenu(container, data, prefix, tracker) {
     let confirmer = getRequiredElementById(`${prefix}confirmer`);
     for (let key of keys) {
         let elem = getRequiredElementById(prefix + key);
+        attachResetButton(elem, prefix, key, tracker);
         elem.addEventListener('input', () => {
             let value = null;
             if (elem.type == 'checkbox') {
@@ -232,5 +304,5 @@ function cancel_server_settings_edit() {
 }
 
 function cancel_user_settings_edit() {
-    doSettingsReset('usersettings_', serverSettingsData);
+    doSettingsReset('usersettings_', userSettingsData);
 }

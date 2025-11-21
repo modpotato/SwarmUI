@@ -52,6 +52,7 @@ public static class AdminAPI
     public static JObject AutoConfigToParamData(AutoConfiguration config, bool hideRestricted = false)
     {
         JObject output = [];
+        AutoConfiguration defaultConfig = Activator.CreateInstance(config.GetType()) as AutoConfiguration;
         foreach ((string key, AutoConfiguration.Internal.SingleFieldData data) in config.InternalData.SharedData.Fields)
         {
             bool isSecret = data.Field.GetCustomAttribute<ValueIsSecretAttribute>() is not null;
@@ -61,6 +62,7 @@ public static class AdminAPI
                 throw new Exception($"[ServerSettings] Unknown type '{data.Field.FieldType}' for field '{data.Field.Name}'!");
             }
             object val = config.GetFieldValueOrDefault<object>(key);
+            object defaultVal = defaultConfig?.GetFieldValueOrDefault<object>(key);
             if (val is AutoConfiguration subConf)
             {
                 val = AutoConfigToParamData(subConf);
@@ -84,7 +86,8 @@ public static class AdminAPI
             {
                 ["type"] = typeName.ToLowerFast(),
                 ["name"] = data.Name,
-                ["value"] = isSecret ? "\t<secret>" : JToken.FromObject(val is List<string> list ? list.JoinString(" || ") : val),
+                ["value"] = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(val)),
+                ["default_value"] = isSecret ? "\t<secret>" : ToJToken(FormatAutoConfigValue(defaultVal)),
                 ["description"] = data.Field.GetCustomAttribute<AutoConfiguration.ConfigComment>()?.Comments ?? "",
                 ["values"] = vals == null ? null : new JArray(vals),
                 ["value_names"] = val_names == null ? null : new JArray(val_names),
@@ -93,6 +96,10 @@ public static class AdminAPI
         }
         return output;
     }
+
+    private static object FormatAutoConfigValue(object value) => value is List<string> list ? list.JoinString(" || ") : value;
+
+    private static JToken ToJToken(object value) => value is null ? JValue.CreateNull() : JToken.FromObject(value);
 
     public static object DataToType(JToken val, Type t)
     {
