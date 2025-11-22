@@ -502,7 +502,12 @@ public static class T2IAPI
         }
         try
         {
-            if (!Directory.Exists(path))
+            string searchRoot = path;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                searchRoot = root;
+            }
+            if (!Directory.Exists(searchRoot))
             {
                 return new JObject()
                 {
@@ -523,7 +528,7 @@ public static class T2IAPI
                     }
                     if (subDepth > 0)
                     {
-                        IEnumerable<string> subDirs = Directory.EnumerateDirectories($"{path}/{dir}").Select(Path.GetFileName).OrderDescending();
+                        IEnumerable<string> subDirs = Directory.EnumerateDirectories($"{searchRoot}/{dir}").Select(Path.GetFileName).OrderDescending();
                         foreach (string subDir in subDirs)
                         {
                             string subPath = dir == "" ? subDir : $"{dir}/{subDir}";
@@ -573,9 +578,9 @@ public static class T2IAPI
                     return;
                 }
                 string prefix = folder == "" ? "" : folder + "/";
-                List<string> subFiles = [.. Directory.EnumerateFiles($"{path}/{prefix}").Take(localLimit)];
-                IEnumerable<string> newFileNames = subFiles.Where(isAllowed).Where(f => extensions.Contains(f.AfterLast('.')) && !f.EndsWith(".swarmpreview.jpg") && !f.EndsWith(".swarmpreview.webp")).Select(f => f.Replace('\\', '/'));
-                List<ImageHistoryHelper> localFiles = [.. newFileNames.Select(f => new ImageHistoryHelper(prefix + f.AfterLast('/'), ImageMetadataTracker.GetMetadataFor(f, root, starNoFolders))).Where(f => f.Metadata is not null)];
+                List<string> subFiles = Directory.EnumerateFiles($"{searchRoot}/{prefix}").Take(localLimit).ToList();
+                var filteredFiles = subFiles.Where(isAllowed).Where(f => extensions.Contains(f.AfterLast('.')) && !f.EndsWith(".swarmpreview.jpg") && !f.EndsWith(".swarmpreview.webp")).Select(f => f.Replace('\\', '/')).ToList();
+                List<ImageHistoryHelper> localFiles = filteredFiles.Select(f => new ImageHistoryHelper(prefix + f.AfterLast('/'), ImageMetadataTracker.GetMetadataFor(f, root, starNoFolders))).Where(f => f.Metadata is not null).ToList();
                 int leftOver = Interlocked.Add(ref remaining, -localFiles.Count);
                 sortList(localFiles);
                 filesConc.TryAdd(localId, localFiles);
