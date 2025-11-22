@@ -543,12 +543,18 @@ class AgenticImagen {
                 return null;
             }
             let blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                let reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
+            
+            // Compress image to reduce size for LLM (JPEG 50%)
+            let imgBitmap = await createImageBitmap(blob);
+            let canvas = document.createElement('canvas');
+            canvas.width = imgBitmap.width;
+            canvas.height = imgBitmap.height;
+            let ctx = canvas.getContext('2d');
+            ctx.drawImage(imgBitmap, 0, 0);
+            
+            let dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+            imgBitmap.close();
+            return dataUrl;
         } catch (e) {
             console.error("Failed to convert image to data URL:", e);
             return null;
