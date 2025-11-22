@@ -418,7 +418,7 @@ class AgenticImagen {
             await this.runIterationLoop();
         } catch (error) {
             console.error('Error in refinement loop:', error);
-            this.showError('Refinement failed: ' + error.message);
+            this.showError('Refinement failed: ' + (error.message || error));
             this.status = 'error';
             this.updateUI();
         }
@@ -448,7 +448,7 @@ class AgenticImagen {
             try {
                 iteration.turnA = await this.executeTurnA();
             } catch (error) {
-                this.addTranscriptMessage('error', `Turn A failed: ${error.message}`);
+                this.addTranscriptMessage('error', `Turn A failed: ${error.message || error}`);
                 throw error;
             } finally {
                 this.hideThinking();
@@ -461,7 +461,7 @@ class AgenticImagen {
                     try {
                         iteration.generatedImages = await this.generateImages();
                     } catch (error) {
-                        this.addTranscriptMessage('error', `Image generation failed: ${error.message}`);
+                        this.addTranscriptMessage('error', `Image generation failed: ${error.message || error}`);
                         throw error;
                     }
                 }
@@ -476,7 +476,7 @@ class AgenticImagen {
                 iteration.turnB = await this.executeTurnB(iteration.generatedImages);
                 iteration.decision = iteration.turnB.decision;
             } catch (error) {
-                this.addTranscriptMessage('error', `Turn B failed: ${error.message}`);
+                this.addTranscriptMessage('error', `Turn B failed: ${error.message || error}`);
                 throw error;
             } finally {
                 this.hideThinking();
@@ -563,7 +563,12 @@ class AgenticImagen {
         // Convert generated images to Data URLs
         let additionalImages = [];
         if (generatedImages && generatedImages.length > 0) {
-            for (let imgPath of generatedImages) {
+            // Only take the last generated image to avoid payload issues and focus on the most recent result
+            // The user requested: "the one were comparing to is the most recent one"
+            let lastImage = generatedImages[generatedImages.length - 1];
+            let imagesToProcess = [lastImage];
+
+            for (let imgPath of imagesToProcess) {
                 // Ensure path is accessible
                 let url = imgPath;
                 if (!url.startsWith('http') && !url.startsWith('data:')) {
