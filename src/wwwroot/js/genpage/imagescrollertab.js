@@ -1,4 +1,3 @@
-
 class ImageScrollerTab {
     constructor() {
         this.container = document.getElementById('image_scroller_container');
@@ -107,6 +106,7 @@ class ImageScrollerTab {
             return;
         }
 
+        // Increase depth to 2 to find images in subfolders
         listImageHistoryFolderAndFiles(path, false, (folders, files) => {
             if (!files) {
                 this.isLoading = false;
@@ -116,7 +116,7 @@ class ImageScrollerTab {
             }
             this.allFiles = files;
             this.processNextBatch();
-        }, 1);
+        }, 2);
     }
 
     processNextBatch() {
