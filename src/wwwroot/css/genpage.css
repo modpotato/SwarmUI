@@ -2027,7 +2027,7 @@ body {
     justify-content: center;
     background-color: #000;
     --swipe-progress: 0;
-    touch-action: pan-x pan-y;
+    touch-action: pan-y;
     overflow: hidden;
     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
@@ -2163,7 +2163,6 @@ body {
 }
 .scroller-image-item.swiping {
     transition: none !important;
-    scroll-snap-align: none;
 }
 
 .scroller-delete-indicator {

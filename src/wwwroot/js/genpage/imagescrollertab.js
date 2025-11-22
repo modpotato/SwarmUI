@@ -287,12 +287,15 @@ class ImageScrollerTab {
         deleteIndicator.innerHTML = '<i class="bi bi-trash-fill"></i>';
         itemDiv.appendChild(deleteIndicator);
 
+        let touchStartTime = 0;
+
         itemDiv.addEventListener('touchstart', (e) => {
             this.swipeStartX = e.touches[0].clientX;
             this.swipeStartY = e.touches[0].clientY;
             this.swipingItem = itemDiv;
             this.swipeCurrentX = 0;
-            itemDiv.classList.add('swiping');
+            touchStartTime = Date.now();
+            // Don't add 'swiping' class yet to avoid interfering with scroll snap
         }, { passive: true });
 
         itemDiv.addEventListener('touchmove', (e) => {
@@ -305,6 +308,10 @@ class ImageScrollerTab {
             if (Math.abs(deltaX) > deltaY && deltaX < 0) {
                 if (e.cancelable) e.preventDefault();
                 
+                if (!itemDiv.classList.contains('swiping')) {
+                    itemDiv.classList.add('swiping');
+                }
+
                 this.swipeCurrentX = deltaX;
                 itemDiv.style.transform = `translateX(${deltaX}px)`;
                 
@@ -320,16 +327,23 @@ class ImageScrollerTab {
                 e.stopImmediatePropagation();
             }
 
-            if (Math.abs(this.swipeCurrentX) > this.swipeThreshold) {
+            const touchDuration = Date.now() - touchStartTime;
+            const velocity = Math.abs(this.swipeCurrentX) / touchDuration;
+            // Velocity check: > 0.5px/ms and moved at least 50px
+            const isFastSwipe = velocity > 0.5 && Math.abs(this.swipeCurrentX) > 50;
+
+            // Remove swiping class immediately to enable transition for the animation
+            itemDiv.classList.remove('swiping');
+
+            if (Math.abs(this.swipeCurrentX) > this.swipeThreshold || isFastSwipe) {
                 // Complete swipe
-                this.moveToRecycleBin(imageName, itemDiv, true);
+                this.moveToRecycleBin(imageName, itemDiv, true, true);
                 itemDiv.style.transform = 'translateX(-100%)';
                 setTimeout(() => itemDiv.remove(), 300);
             } else {
                 // Cancel swipe
                 itemDiv.style.transform = 'translateX(0)';
                 setTimeout(() => {
-                    itemDiv.classList.remove('swiping');
                     itemDiv.style.removeProperty('--swipe-progress');
                 }, 300);
             }
@@ -372,14 +386,16 @@ class ImageScrollerTab {
         }, 1000);
     }
 
-    moveToRecycleBin(path, itemElement, skipConfirm = false) {
+    moveToRecycleBin(path, itemElement, skipConfirm = false, skipDomRemove = false) {
         if (!skipConfirm && !confirm(translate("Are you sure you want to move this image to the recycle bin?"))) {
             return;
         }
 
         genericRequest('MoveImageToRecycleBin', { 'path': path }, (data) => {
             if (data.success) {
-                itemElement.remove();
+                if (!skipDomRemove) {
+                    itemElement.remove();
+                }
                 // Remove from local list
                 const index = this.currentImages.findIndex(f => f.data.name === path);
                 if (index > -1) {
