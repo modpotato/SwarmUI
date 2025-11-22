@@ -1,6 +1,7 @@
+@* Remove Program.Languages.GetPhrase and use static text, since translation is handled client-side *@
 <div class="imagescrollertabwrapper" id="imagescrollertabwrapper">
-    <div id="scroller_back_button" class="scroller-back-button scroller-back-button-hidden" title="@(Program.Languages.GetPhrase("Back"))">
-        <i class="bi bi-arrow-left"></i> @(Program.Languages.GetPhrase("Back"))
+    <div id="scroller_back_button" class="scroller-back-button scroller-back-button-hidden" title="Back">
+        <i class="bi bi-arrow-left"></i> Back
     </div>
     
     <div id="image_scroller_container" class="image-scroller-container">
@@ -11,6 +12,6 @@
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <span>@(Program.Languages.GetPhrase("Loading more images..."))</span>
+        <span>Loading more images...</span>
     </div>
 </div>
