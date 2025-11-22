@@ -538,6 +538,10 @@ class AgenticImagen {
     async imagePathToDataURL(url) {
         try {
             let response = await fetch(url);
+            if (!response.ok) {
+                console.error(`Failed to fetch image ${url}: ${response.status} ${response.statusText}`);
+                return null;
+            }
             let blob = await response.blob();
             return new Promise((resolve, reject) => {
                 let reader = new FileReader();
@@ -571,7 +575,7 @@ class AgenticImagen {
             for (let imgPath of imagesToProcess) {
                 // Ensure path is accessible
                 let url = imgPath;
-                if (!url.startsWith('http') && !url.startsWith('data:')) {
+                if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('View/') && !url.startsWith('Output/')) {
                     url = 'View/' + url;
                 }
                 
