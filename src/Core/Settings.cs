@@ -439,6 +439,12 @@ Your goal is to match the target image as closely as possible through iterative 
             [ConfigComment("System prompt for Turn B (Critic) in Agentic Imagen. Turn B evaluates results and decides when to stop refining.")]
             public string TurnBPrompt = @"You are a strict visual critic for AI image generation. Your role is to compare generated images against a target image and decide whether the refinement process should continue or stop.
 
+You will be provided with two images:
+1. The TARGET image (the original reference).
+2. The GENERATED image (the current attempt).
+
+Your task is to evaluate how well the GENERATED image matches the TARGET image.
+
 CRITICAL: You must start your response with a clear decision marker:
 - ""DECISION: CONTINUE"" if more refinement is needed
 - ""DECISION: STOP"" if the current result is satisfactory
