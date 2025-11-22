@@ -4,6 +4,9 @@
     "keys": {
         "Image Scroller": "Image Scroller",
         "Move to Recycle Bin": "Move to Recycle Bin",
+        "Swipe left to delete": "Swipe left to delete",
+        "Release to delete": "Release to delete",
+        "Image deleted": "Image deleted",
         "Image moved to recycle bin": "Image moved to recycle bin",
         "Failed to move image": "Failed to move image",
         "Back": "Back",

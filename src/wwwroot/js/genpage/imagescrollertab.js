@@ -13,6 +13,13 @@ class ImageScrollerTab {
         this.lastTapTime = 0;
         this.lastTapImage = null;
         
+        // Swipe gesture state
+        this.swipeStartX = null;
+        this.swipeStartY = null;
+        this.swipeCurrentX = 0;
+        this.swipingItem = null;
+        this.swipeThreshold = Math.max(100, window.innerWidth * 0.3);
+        
         this.initialized = false;
         this.currentPath = 'raw';
         this.hasMore = true;
@@ -163,6 +170,7 @@ class ImageScrollerTab {
         }
         
         itemDiv.appendChild(element);
+        this.setupSwipeHandlers(itemDiv, name);
         
         // Metadata Overlay
         const metadataOverlay = document.createElement('div');
@@ -223,22 +231,25 @@ class ImageScrollerTab {
         
         // Tap handler
         let lastTapTime = 0;
-        itemDiv.addEventListener('click', (e) => {
+        
+        const handleTap = (e) => {
+            if (this.swipingItem !== null) return;
+            
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
             
-            if (tapLength < 300 && tapLength > 0) {
+            if (tapLength < 400 && tapLength > 0) {
                 // Double tap
                 if (starBtn) {
                     this.toggleStar(name, starBtn);
                     this.showHeartAnimation(itemDiv);
                 }
-                e.preventDefault();
+                if (e.cancelable) e.preventDefault();
             } else {
                 // Single tap (delayed to wait for potential double tap)
                 setTimeout(() => {
                     const newTime = new Date().getTime();
-                    if (newTime - lastTapTime >= 300) {
+                    if (newTime - lastTapTime >= 400) {
                         // Toggle overlays
                         if (metadataOverlay.style.opacity === '0') {
                             metadataOverlay.style.opacity = '1';
@@ -248,14 +259,89 @@ class ImageScrollerTab {
                             actionsOverlay.style.opacity = '0';
                         }
                     }
-                }, 300);
+                }, 400);
             }
             
             lastTapTime = currentTime;
+        };
+
+        itemDiv.addEventListener('click', handleTap);
+        itemDiv.addEventListener('touchend', (e) => {
+            // Only handle if it's a tap (not a swipe)
+            if (this.swipingItem === null && Math.abs(this.swipeCurrentX) < 10) {
+                handleTap(e);
+                if (e.cancelable) e.preventDefault();
+            }
         });
+        
+        this.setupSwipeHandlers(itemDiv, name);
         
         this.container.appendChild(itemDiv);
         this.observer.observe(itemDiv);
+    }
+
+    setupSwipeHandlers(itemDiv, imageName) {
+        // Create delete indicator
+        const deleteIndicator = document.createElement('div');
+        deleteIndicator.className = 'scroller-delete-indicator';
+        deleteIndicator.innerHTML = '<i class="bi bi-trash-fill"></i>';
+        itemDiv.appendChild(deleteIndicator);
+
+        itemDiv.addEventListener('touchstart', (e) => {
+            this.swipeStartX = e.touches[0].clientX;
+            this.swipeStartY = e.touches[0].clientY;
+            this.swipingItem = itemDiv;
+            this.swipeCurrentX = 0;
+            itemDiv.classList.add('swiping');
+        }, { passive: true });
+
+        itemDiv.addEventListener('touchmove', (e) => {
+            if (!this.swipeStartX || this.swipingItem !== itemDiv) return;
+
+            const deltaX = e.touches[0].clientX - this.swipeStartX;
+            const deltaY = Math.abs(e.touches[0].clientY - this.swipeStartY);
+
+            // Only handle left swipe
+            if (Math.abs(deltaX) > deltaY && deltaX < 0) {
+                if (e.cancelable) e.preventDefault();
+                
+                this.swipeCurrentX = deltaX;
+                itemDiv.style.transform = `translateX(${deltaX}px)`;
+                
+                const progress = Math.min(1, Math.abs(deltaX) / this.swipeThreshold);
+                itemDiv.style.setProperty('--swipe-progress', progress);
+            }
+        }, { passive: false });
+
+        const endSwipe = (e) => {
+            if (!this.swipingItem) return;
+
+            if (Math.abs(this.swipeCurrentX) > 10 && e.type === 'touchend') {
+                e.stopImmediatePropagation();
+            }
+
+            if (Math.abs(this.swipeCurrentX) > this.swipeThreshold) {
+                // Complete swipe
+                this.moveToRecycleBin(imageName, itemDiv, true);
+                itemDiv.style.transform = 'translateX(-100%)';
+                setTimeout(() => itemDiv.remove(), 300);
+            } else {
+                // Cancel swipe
+                itemDiv.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    itemDiv.classList.remove('swiping');
+                    itemDiv.style.removeProperty('--swipe-progress');
+                }, 300);
+            }
+
+            this.swipeStartX = null;
+            this.swipeStartY = null;
+            this.swipingItem = null;
+            this.swipeCurrentX = 0;
+        };
+
+        itemDiv.addEventListener('touchend', endSwipe);
+        itemDiv.addEventListener('touchcancel', endSwipe);
     }
 
     toggleStar(path, btnElement) {
@@ -286,8 +372,8 @@ class ImageScrollerTab {
         }, 1000);
     }
 
-    moveToRecycleBin(path, itemElement) {
-        if (!confirm(translate("Are you sure you want to move this image to the recycle bin?"))) {
+    moveToRecycleBin(path, itemElement, skipConfirm = false) {
+        if (!skipConfirm && !confirm(translate("Are you sure you want to move this image to the recycle bin?"))) {
             return;
         }
 
@@ -299,7 +385,7 @@ class ImageScrollerTab {
                 if (index > -1) {
                     this.currentImages.splice(index, 1);
                 }
-                showToast(translate("Image moved to recycle bin"));
+                showToast(translate("Image deleted"));
             } else {
                 showToast(translate("Failed to move image"));
             }
