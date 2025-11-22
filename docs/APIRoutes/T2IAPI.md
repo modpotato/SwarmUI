@@ -187,6 +187,41 @@ Gets a list of images in a saved image history folder.
     ]
 ```
 
+## HTTP Route /API/ListImagesRecursive
+
+#### Description
+
+Gets a paginated list of images by recursively traversing all subfolders from a starting path. Designed for efficient loading of large image collections with proper pagination support.
+
+#### Permission Flag
+
+`view_image_history` - `View Image History` in group `User`
+
+#### Parameters
+
+| Name | Type | Description | Default |
+| --- | --- | --- | --- |
+| path | String | The folder path to start the listing in. Use an empty string for root. | **(REQUIRED)** |
+| offset | Int32 | Number of images to skip (for pagination). | **(REQUIRED)** |
+| limit | Int32 | Maximum number of images to return. | **(REQUIRED)** |
+| sortBy | String | What to sort the list by - `Name` or `Date`. | `Date` |
+| sortReverse | Boolean | If true, the sorting should be done in reverse. | `False` |
+
+#### Return Format
+
+```js
+{
+    "files": [
+        {
+            "src": "raw/2025-10-22/image.png",
+            "metadata": "{ ... }"
+        }
+    ],
+    "hasMore": true,
+    "totalCount": 1523
+}
+```
+
 ## HTTP Route /API/ListT2IParams
 
 #### Description

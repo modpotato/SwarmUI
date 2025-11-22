@@ -701,8 +701,12 @@ function genpageLoad() {
     });
     // Initialize Image Scroller tab when first shown
     $('#imagescrollertabbutton').one('shown.bs.tab', function() {
+        console.log('Image Scroller tab initialized');
         if (window.imageScrollerTab) {
             window.imageScrollerTab.initialize();
+        }
+        else {
+            console.error("Image Scroller Tab object not found!");
         }
     });
 

@@ -2009,6 +2009,7 @@ body {
     overflow-y: auto;
     scroll-snap-type: y mandatory;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     scrollbar-width: none; /* Firefox */
 }
 
@@ -2057,6 +2058,8 @@ body {
 
 .scroller-back-button-hidden {
     transform: translateY(-100px);
+    opacity: 0;
+    pointer-events: none;
 }
 
 .scroller-topbar-hidden {

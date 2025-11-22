@@ -14,7 +14,7 @@ class ImageScrollerTab {
         this.lastTapImage = null;
         
         this.initialized = false;
-        this.currentPath = '';
+        this.currentPath = 'raw';
         this.hasMore = true;
         
         this.observer = new IntersectionObserver(this.handleIntersection.bind(this), {
@@ -96,61 +96,60 @@ class ImageScrollerTab {
         this.isLoading = true;
         this.loadingIndicator.style.display = 'flex';
         
-        // Use existing image history logic to fetch images
-        // We'll fetch the root folder by default
-        let path = this.currentPath;
-        
-        // Since the current API returns all files in a folder, we'll fetch once and then paginate locally
-        if (this.allFiles && this.allFiles.length > 0) {
-            this.processNextBatch();
-            return;
-        }
-
-        // Increase depth to 2 to find images in subfolders
-        listImageHistoryFolderAndFiles(path, false, (folders, files) => {
-            if (!files) {
+        genericRequest('ListImagesRecursive', {
+            'path': this.currentPath,
+            'offset': this.currentImages.length,
+            'limit': 10,
+            'sortBy': 'Date',
+            'sortReverse': true
+        }, data => {
+            if (data.error) {
+                console.log("Error loading images: " + data.error);
+                // Fallback to root if raw fails (e.g. first run)
+                if (this.currentPath == 'raw') {
+                    this.currentPath = '';
+                    this.isLoading = false;
+                    this.loadImages();
+                    return;
+                }
                 this.isLoading = false;
                 this.loadingIndicator.style.display = 'none';
                 showToast(translate("Failed to load images"));
                 return;
             }
-            this.allFiles = files;
-            this.processNextBatch();
-        }, 2);
-    }
 
-    processNextBatch() {
-        const batchSize = 20;
-        const startIndex = this.currentImages.length;
-        const nextBatch = this.allFiles.slice(startIndex, startIndex + batchSize);
-        
-        if (nextBatch.length === 0) {
-            this.hasMore = false;
+            if (!data.files || data.files.length === 0) {
+                if (this.currentPath == 'raw' && this.currentImages.length == 0) {
+                    // If raw is empty, try root
+                    this.currentPath = '';
+                    this.isLoading = false;
+                    this.loadImages();
+                    return;
+                }
+                this.hasMore = false;
+                this.isLoading = false;
+                this.loadingIndicator.style.display = 'none';
+                return;
+            }
+
+            this.hasMore = data.hasMore;
+            
+            data.files.forEach(file => {
+                this.renderImage(file);
+                this.currentImages.push(file);
+            });
+            
             this.isLoading = false;
             this.loadingIndicator.style.display = 'none';
-            return;
-        }
-        
-        nextBatch.forEach(file => {
-            this.renderImage(file);
-            this.currentImages.push(file);
         });
-        
-        this.isLoading = false;
-        this.loadingIndicator.style.display = 'none';
-        
-        if (this.currentImages.length >= this.allFiles.length) {
-            this.hasMore = false;
-        }
     }
 
     renderImage(file) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'scroller-image-item';
         
-        // file.data.src is the full URL, file.data.name is the relative path
-        const src = file.data.src;
-        const name = file.data.name;
+        const src = getImageOutPrefix() + '/' + file.src;
+        const name = file.src;
         
         const isVideo = src.endsWith('.mp4') || src.endsWith('.webm');
         const element = isVideo ? document.createElement('video') : document.createElement('img');
@@ -170,8 +169,7 @@ class ImageScrollerTab {
         metadataOverlay.className = 'scroller-metadata-overlay';
         
         // Parse metadata
-        let metadata = file.data.metadata;
-        // interpretMetadata already returns an object or null, but let's be safe
+        let metadata = interpretMetadata(file.metadata);
         
         if (metadata && metadata.sui_image_params) {
             const params = metadata.sui_image_params;

@@ -29,6 +29,7 @@ public static class T2IAPI
         API.RegisterAPICall(GenerateText2ImageWS, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(AddImageToHistory, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(ListImages, false, Permissions.ViewImageHistory);
+        API.RegisterAPICall(ListImagesRecursive, false, Permissions.ViewImageHistory);
         API.RegisterAPICall(ToggleImageStarred, true, Permissions.UserStarImages);
         API.RegisterAPICall(OpenImageFolder, true, Permissions.LocalImageFolder);
         API.RegisterAPICall(DeleteImage, true, Permissions.UserDeleteImage);
@@ -724,6 +725,97 @@ public static class T2IAPI
         }
         string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
         return GetListAPIInternal(session, path, root, ImageExtensions, f => !f.Replace('\\', '/').StartsWith("RecycleBin/"), depth, sortMode, sortReverse);
+    }
+
+    [API.APIDescription("Gets a paginated list of images by recursively traversing all subfolders from a starting path.",
+        """
+            "files": [
+                {
+                    "src": "raw/2025-10-22/image.png",
+                    "metadata": "{ ... }"
+                }
+            ],
+            "hasMore": true,
+            "totalCount": 1523
+        """)]
+    public static async Task<JObject> ListImagesRecursive(Session session,
+        [API.APIParameter("The folder path to start the listing in. Use an empty string for root.")] string path,
+        [API.APIParameter("Number of images to skip (for pagination).")] int offset,
+        [API.APIParameter("Maximum number of images to return.")] int limit,
+        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sortBy = "Date",
+        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sortReverse = false)
+    {
+        if (!Enum.TryParse(sortBy, true, out ImageHistorySortMode sortMode))
+        {
+            return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
+        }
+        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
+        if (consoleError is not null)
+        {
+            Logs.Error(consoleError);
+            return new JObject() { ["error"] = userError };
+        }
+        string searchRoot = path;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            searchRoot = root;
+        }
+        if (!Directory.Exists(searchRoot))
+        {
+            return new JObject()
+            {
+                ["files"] = new JArray(),
+                ["hasMore"] = false,
+                ["totalCount"] = 0
+            };
+        }
+
+        return await Task.Run(() =>
+        {
+            // Recursive enumeration
+            var files = Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories)
+                .Where(f => ImageExtensions.Contains(f.AfterLast('.').ToLowerFast()))
+                .Where(f => !f.Replace('\\', '/').Contains("/RecycleBin/")); // Exclude RecycleBin
+
+            // Sorting
+            if (sortMode == ImageHistorySortMode.Date)
+            {
+                files = sortReverse ? files.OrderByDescending(File.GetLastWriteTime) : files.OrderBy(File.GetLastWriteTime);
+            }
+            else // Name
+            {
+                files = sortReverse ? files.OrderByDescending(f => f) : files.OrderBy(f => f);
+            }
+
+            // Materialize list to get count and paginate
+            // Note: For very large collections, this might be slow. 
+            // Optimization: Could cache the file list or use a more efficient way to skip/take if possible without full sort.
+            // But for now, this meets the requirement of "proper recursive image loading".
+            var fileList = files.ToList();
+            int totalCount = fileList.Count;
+            var pagedFiles = fileList.Skip(offset).Take(limit).ToList();
+
+            JArray fileArray = new();
+            bool starNoFolders = session.User.Settings.StarNoFolders;
+            foreach (string file in pagedFiles)
+            {
+                string relPath = Path.GetRelativePath(root, file).Replace('\\', '/');
+                string metadata = ImageMetadataTracker.GetMetadataFor(file, root, starNoFolders)?.Metadata;
+                fileArray.Add(new JObject()
+                {
+                    ["src"] = relPath,
+                    ["metadata"] = metadata
+                });
+            }
+
+            return new JObject()
+            {
+                ["files"] = fileArray,
+                ["hasMore"] = offset + limit < totalCount,
+                ["totalCount"] = totalCount
+            };
+        });
     }
 
     [API.APIDescription("Toggle whether an image is starred or not.", "\"new_state\": true")]
