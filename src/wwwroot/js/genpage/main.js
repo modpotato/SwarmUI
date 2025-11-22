@@ -688,7 +688,9 @@ function clearParamFilterInput() {
 }
 
 function genpageLoad() {
-    $('#toptablist').on('shown.bs.tab', function (e) {
+    $('#toptablist a[data-bs-toggle="tab"]').on('show.bs.tab', function(e) {
+        let lastActiveTab = $(e.relatedTarget).attr('href'); // Store previous tab
+        localStorage.setItem('last_active_tab', lastActiveTab);
         let versionDisp = getRequiredElementById('version_display');
         if (e.target.id == 'maintab_comfyworkflow') {
             versionDisp.style.display = 'none';
@@ -697,6 +699,13 @@ function genpageLoad() {
             versionDisp.style.display = '';
         }
     });
+    // Initialize Image Scroller tab when first shown
+    $('#imagescrollertabbutton').one('shown.bs.tab', function() {
+        if (window.imageScrollerTab) {
+            window.imageScrollerTab.initialize();
+        }
+    });
+
     window.imageEditor = new ImageEditor(getRequiredElementById('image_editor_input'), true, true, () => genTabLayout.reapplyPositions(), () => needsNewPreview());
     let editorSizebar = getRequiredElementById('image_editor_sizebar');
     window.imageEditor.onActivate = () => {

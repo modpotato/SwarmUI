@@ -1,0 +1,16 @@
+<div class="imagescrollertabwrapper" id="imagescrollertabwrapper">
+    <div id="scroller_back_button" class="scroller-back-button scroller-back-button-hidden" title="@(Program.Languages.GetPhrase("Back"))">
+        <i class="bi bi-arrow-left"></i> @(Program.Languages.GetPhrase("Back"))
+    </div>
+    
+    <div id="image_scroller_container" class="image-scroller-container">
+        <!-- Images will be dynamically inserted here -->
+    </div>
+    
+    <div id="scroller_loading_indicator" class="scroller-loading-indicator" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <span>@(Program.Languages.GetPhrase("Loading more images..."))</span>
+    </div>
+</div>

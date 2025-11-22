@@ -46,6 +46,9 @@
         <a class="nav-link translate" data-bs-toggle="tab" href="#Simple" id="simpletabbutton" aria-selected="false" tabindex="-1" role="tab">Simple</a>
     </li>
     <li class="nav-item" role="presentation">
+        <a class="nav-link translate" data-bs-toggle="tab" href="#ImageScroller" id="imagescrollertabbutton" aria-selected="false" tabindex="-1" role="tab">Image Scroller</a>
+    </li>
+    <li class="nav-item" role="presentation">
         <a class="nav-link active translate" data-bs-toggle="tab" href="#Text2Image" id="text2imagetabbutton" aria-selected="true" role="tab">Generate</a>
     </li>
     @WebServer.T2ITabHeader
@@ -62,6 +65,9 @@
 <div class="tab-content tab-hundred">
     <div class="tab-pane tab-pane-vw" id="Simple" role="tabpanel">
         @await Html.PartialAsync("_Generate/SimpleTab.cshtml", pageModel)
+    </div>
+    <div class="tab-pane tab-pane-vw" id="ImageScroller" role="tabpanel">
+        @await Html.PartialAsync("_Generate/ImageScrollerTab.cshtml", pageModel)
     </div>
     <div class="tab-pane show active" style="line-height:0" id="Text2Image" role="tabpanel">
         @await Html.PartialAsync("_Generate/GenerateTab.cshtml", pageModel)
@@ -97,6 +103,7 @@
     <script src="js/genpage/helpers/image_editor.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/helpers/generatehandler.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/simpletab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/imagescrollertab.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/gentab/layout.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/helpers/metadatahelpers.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/gentab/generatecontrols.js?vary=@Utilities.VaryID"></script>

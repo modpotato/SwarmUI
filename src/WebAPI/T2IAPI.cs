@@ -32,6 +32,7 @@ public static class T2IAPI
         API.RegisterAPICall(ToggleImageStarred, true, Permissions.UserStarImages);
         API.RegisterAPICall(OpenImageFolder, true, Permissions.LocalImageFolder);
         API.RegisterAPICall(DeleteImage, true, Permissions.UserDeleteImage);
+        API.RegisterAPICall(MoveImageToRecycleBin, true, Permissions.UserDeleteImage);
         API.RegisterAPICall(ListT2IParams, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(TriggerRefresh, true, Permissions.FundamentalGenerateTabAccess); // Intentionally weird perm here: internal check for readonly vs true refresh
     }
@@ -717,7 +718,7 @@ public static class T2IAPI
             return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
         }
         string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
-        return GetListAPIInternal(session, path, root, ImageExtensions, f => true, depth, sortMode, sortReverse);
+        return GetListAPIInternal(session, path, root, ImageExtensions, f => !f.Replace('\\', '/').StartsWith("RecycleBin/"), depth, sortMode, sortReverse);
     }
 
     [API.APIDescription("Toggle whether an image is starred or not.", "\"new_state\": true")]
@@ -917,5 +918,86 @@ public static class T2IAPI
             ["wildcards"] = new JArray(WildcardsHelper.ListFiles),
             ["param_edits"] = string.IsNullOrWhiteSpace(session.User.Data.RawParamEdits) ? null : JObject.Parse(session.User.Data.RawParamEdits)
         };
+    }
+
+    [API.APIDescription("Move an image to the RecycleBin folder.",
+        """
+            "success": true,
+            "new_path": "RecycleBin/path/to/image.jpg"
+        """)]
+    public static async Task<JObject> MoveImageToRecycleBin(Session session,
+        [API.APIParameter("The path to the image to move.")] string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return new JObject() { ["error"] = "Path cannot be empty." };
+        }
+        
+        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
+        if (consoleError is not null)
+        {
+            Logs.Error(consoleError);
+            return new JObject() { ["error"] = userError };
+        }
+
+        if (!File.Exists(path))
+        {
+            return new JObject() { ["error"] = "File not found." };
+        }
+        
+        string standardizedPath = Path.GetFullPath(path);
+        string userOutput = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        string recycleBinRoot = Path.Combine(userOutput, "RecycleBin");
+        
+        // Calculate relative path to preserve structure
+        string relativePath = Path.GetRelativePath(userOutput, standardizedPath);
+        if (relativePath.StartsWith("RecycleBin" + Path.DirectorySeparatorChar))
+        {
+             return new JObject() { ["error"] = "File is already in RecycleBin." };
+        }
+        
+        string newPath = Path.Combine(recycleBinRoot, relativePath);
+        string newDir = Path.GetDirectoryName(newPath);
+        Directory.CreateDirectory(newDir);
+        
+        // Handle collisions
+        if (File.Exists(newPath))
+        {
+            string ext = Path.GetExtension(newPath);
+            string baseName = Path.GetFileNameWithoutExtension(newPath);
+            newPath = Path.Combine(newDir, $"{baseName}_{DateTime.Now:yyyyMMddHHmmss}{ext}");
+        }
+        
+        try
+        {
+            File.Move(standardizedPath, newPath);
+            Session.RecentlyBlockedFilenames[standardizedPath] = standardizedPath;
+            
+            // Move related files
+            string oldFileBase = standardizedPath.BeforeLast('.');
+            string newFileBase = newPath.BeforeLast('.');
+            
+            foreach (string str in DeletableFileExtensions)
+            {
+                string altFile = $"{oldFileBase}{str}";
+                if (File.Exists(altFile))
+                {
+                    string newAltFile = $"{newFileBase}{str}";
+                    File.Move(altFile, newAltFile);
+                }
+            }
+            
+            ImageMetadataTracker.RemoveMetadataFor(standardizedPath);
+            ImageMetadataTracker.RemoveMetadataFor(newPath); // Ensure clean state
+            
+            string relativeNewPath = Path.GetRelativePath(userOutput, newPath);
+            return new JObject() { ["success"] = true, ["new_path"] = relativeNewPath };
+        }
+        catch (Exception ex)
+        {
+            Logs.Error($"Failed to move file to recycle bin: {ex.Message}");
+            return new JObject() { ["error"] = $"Failed to move file: {ex.Message}" };
+        }
     }
 }

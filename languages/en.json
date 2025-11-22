@@ -2,6 +2,12 @@
     "name_en": "English",
     "name_local": "English",
     "keys": {
+        "Image Scroller": "Image Scroller",
+        "Move to Recycle Bin": "Move to Recycle Bin",
+        "Image moved to recycle bin": "Image moved to recycle bin",
+        "Failed to move image": "Failed to move image",
+        "Back": "Back",
+        "Loading more images...": "Loading more images...",
         "\n                            TensorRT is an NVIDIA-specific optimization library. This will create a \".engine\" TensorRT model based on your model.\n                            This will take several minutes to create, and will only work with a limited subset of inputs.\n                            (For example, LoRA will not work, and resolution is constrained to the range you select).\n                            Therefore this should only be used for models you want to use frequently, especially for example models exposed as an external API.\n                        ": "",
         "\n                            The \"Utilities\" tab provides a variety of general utilities and tools in the subtabs above, and the quicktools below.\n                        ": "",
         "\n                            This is a tool to analyze CLIP tokenization for Stable Diffusion models.\n                            All current Stable Diffusion models use the same CLIP token set, so this applies to them all.\n                            Simply type some text in the box below to see how it gets tokenized.\n                            It will show each text-piece, and its numerical ID.\n                        ": "",
