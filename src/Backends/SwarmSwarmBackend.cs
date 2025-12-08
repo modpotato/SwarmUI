@@ -3,6 +3,7 @@ using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Core;
+using SwarmUI.Media;
 using SwarmUI.Text2Image;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
@@ -99,6 +100,9 @@ public class SwarmSwarmBackend : AbstractT2IBackend
 
     /// <summary>Event fired when a backend is revising its remote data.</summary>
     public static Action<SwarmSwarmBackend> ReviseRemotesEvent;
+
+    /// <summary>The parent backend, if any.</summary>
+    public SwarmSwarmBackend Parent;
 
     /// <summary>Gets a request adapter appropriate to this Swarm backend, including eg auth headers.</summary>
     public Action<HttpRequestMessage> RequestAdapter()
@@ -263,6 +267,7 @@ public class SwarmSwarmBackend : AbstractT2IBackend
                             newSwarm.LinkedRemoteBackendType = type;
                             newSwarm.Title = $"[Remote from {BackendData.ID}: {Title}] {title}";
                             newSwarm.CanLoadModels = backend["can_load_models"].Value<bool>();
+                            newSwarm.Parent = this;
                             OnSwarmBackendAdded?.Invoke(newSwarm);
                             ControlledNonrealBackends.TryAdd(id, newData);
                         });
@@ -456,6 +461,11 @@ public class SwarmSwarmBackend : AbstractT2IBackend
         {
             return false;
         }
+        if (input is not null && input.Get(T2IParamTypes.NoLoadModels, false))
+        {
+            CurrentModelName = model.Name;
+            return true;
+        }
         bool success = false;
         await RunWithSession(async () =>
         {
@@ -515,6 +525,10 @@ public class SwarmSwarmBackend : AbstractT2IBackend
         {
             req[T2IParamTypes.ExactBackendID.Type.ID] = LinkedRemoteBackendID;
         }
+        if (user_input.ReceiveRawBackendData is not null)
+        {
+            req[T2IParamTypes.ForwardRawBackendData.Type.ID] = true;
+        }
         return req;
     }
 
@@ -523,7 +537,7 @@ public class SwarmSwarmBackend : AbstractT2IBackend
     {
         user_input.ProcessPromptEmbeds(x => $"<embedding:{x}>");
         JObject generated = SendAPIJSON("GenerateText2Image", BuildRequest(user_input)).Result;
-        Image[] images = [.. generated["images"].Select(img => Image.FromDataString(img.ToString()))];
+        Image[] images = [.. generated["images"].Select(img => ImageFile.FromDataString(img.ToString()) as Image)];
         return images;
     }
 
@@ -533,9 +547,9 @@ public class SwarmSwarmBackend : AbstractT2IBackend
         if (!Settings.AllowWebsocket)
         {
             Image[] results = await Generate(user_input);
-            foreach (Image img in results)
+            foreach (MediaFile file in results)
             {
-                takeOutput(img);
+                takeOutput(file);
             }
             return;
         }
@@ -563,6 +577,7 @@ public class SwarmSwarmBackend : AbstractT2IBackend
                 }
             });
             await websocket.SendJson(BuildRequest(user_input), API.WebsocketTimeout);
+            Logs.Debug($"[{HandlerTypeData.Name}] WebSocket connected, remote backend {LinkedRemoteBackendID} should begin generating...");
             while (true)
             {
                 if (user_input.InterruptToken.IsCancellationRequested)
@@ -570,7 +585,7 @@ public class SwarmSwarmBackend : AbstractT2IBackend
                     // TODO: This will require separate remote sessions per-user for multiuser support
                     await HttpClient.PostJson($"{Address}/API/InterruptAll", new() { ["session_id"] = Session, ["other_sessions"] = false }, RequestAdapter());
                 }
-                JObject response = await websocket.ReceiveJson(1024 * 1024 * 100, true);
+                JObject response = await websocket.ReceiveJson(Utilities.ExtraLargeMaxReceive, true);
                 if (response is not null)
                 {
                     AutoThrowException(response);
@@ -596,7 +611,14 @@ public class SwarmSwarmBackend : AbstractT2IBackend
                     else if (response.TryGetValue("image", out val))
                     {
                         Logs.Verbose($"[{HandlerTypeData.Name}] Got image from websocket");
-                        takeOutput(Image.FromDataString(val.ToString()));
+                        takeOutput(ImageFile.FromDataString(val.ToString()));
+                    }
+                    else if (response.TryGetValue("raw_backend_data", out JToken rawData))
+                    {
+                        string type = rawData["type"].ToString();
+                        string datab64 = rawData["data"].ToString();
+                        byte[] data = Convert.FromBase64String(datab64);
+                        user_input.ReceiveRawBackendData?.Invoke(type, data);
                     }
                     else
                     {

@@ -2,6 +2,7 @@
 using FreneticUtilities.FreneticDataSyntax;
 using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
+using SwarmUI.Accounts;
 using SwarmUI.Backends;
 using SwarmUI.Core;
 using SwarmUI.Utils;
@@ -187,7 +188,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
     }
 
     /// <summary>Names of folders in comfy paths that should be blindly forwarded to correct for Comfy not properly propagating base_path without manual forwards.</summary>
-    public static List<string> FoldersToForwardInComfyPath = ["unet", "diffusion_models", "gligen", "ipadapter", "yolov8", "tensorrt", "clipseg", "style_models"];
+    public static List<string> FoldersToForwardInComfyPath = ["unet", "diffusion_models", "gligen", "ipadapter", "yolov8", "tensorrt", "clipseg", "style_models", "latent_upscale_models"];
 
     /// <summary>Filepaths to where custom node packs for comfy can be found, such as extension dirs.</summary>
     public static List<string> CustomNodePaths = [];
@@ -244,6 +245,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
                     embeddings: {buildSection(rootFixed, Program.ServerSettings.Paths.SDEmbeddingFolder + ";embeddings")}
                     hypernetworks: {buildSection(rootFixed, "hypernetworks")}
                     controlnet: {buildSection(rootFixed, Program.ServerSettings.Paths.SDControlNetsFolder + ";ControlNet")}
+                    model_patches: {buildSection(rootFixed, Program.ServerSettings.Paths.SDControlNetsFolder + ";ControlNet;model_patches")}
                     clip: {buildSection(rootFixed, Program.ServerSettings.Paths.SDClipFolder + ";clip;CLIP")}
                     clip_vision: {buildSection(rootFixed, Program.ServerSettings.Paths.SDClipVisionFolder + ";clip_vision")}
 
@@ -283,7 +285,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
         return Process.Start(start);
     }
 
-    public static string SwarmValidatedFrontendVersion = "1.27.10";
+    public static string SwarmValidatedFrontendVersion = "1.34.5";
 
     public override async Task Init()
     {
@@ -330,21 +332,40 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
             AddLoadStatus($"Will add args: {addedArgs}");
         }
         Settings.StartScript = Settings.StartScript.Trim(' ', '"', '\'', '\n', '\r', '\t');
-        if (!Settings.StartScript.EndsWith("main.py") && !string.IsNullOrWhiteSpace(Settings.StartScript))
+        if (string.IsNullOrWhiteSpace(Settings.StartScript))
+        {
+            AddLoadStatus($"Start script is empty, cannot load.");
+            Status = BackendStatus.DISABLED;
+            return;
+        }
+        if (!Settings.StartScript.EndsWith("main.py"))
         {
             AddLoadStatus($"Start script '{Settings.StartScript}' looks wrong");
             Logs.Warning($"ComfyUI start script is '{Settings.StartScript}', which looks wrong - did you forget to append 'main.py' on the end?");
         }
+        lock (ComfyModelFileHelperLock)
+        {
+            string inputFolder = $"{Directory.GetParent(Settings.StartScript).FullName}/input";
+            if (Directory.Exists(inputFolder) && !UserImageHistoryHelper.SharedSpecialFolders.Values.Contains(inputFolder))
+            {
+                UserImageHistoryHelper.SharedSpecialFolders[$"inputs/_comfy{BackendData.ID}/"] = inputFolder;
+            }
+            string outputFolder = $"{Directory.GetParent(Settings.StartScript).FullName}/output";
+            if (Directory.Exists(outputFolder) && !UserImageHistoryHelper.SharedSpecialFolders.Values.Contains(outputFolder))
+            {
+                UserImageHistoryHelper.SharedSpecialFolders[$"_comfy{BackendData.ID}/"] = outputFolder;
+            }
+        }
         Directory.CreateDirectory(Path.GetFullPath(ComfyUIBackendExtension.Folder + "/DLNodes"));
         string autoUpdNodes = Settings.UpdateManagedNodes.ToLowerFast();
         List<Task> tasks = [];
-        if ((autoUpdNodes == "true" || autoUpdNodes == "aggressive") && !string.IsNullOrWhiteSpace(Settings.StartScript))
+        if ((autoUpdNodes == "true" || autoUpdNodes == "aggressive"))
         {
             AddLoadStatus("Will track node repo load task...");
             tasks.Add(Task.Run(EnsureNodeRepos));
         }
         string autoUpd = Settings.AutoUpdate.ToLowerFast();
-        if ((autoUpd == "true" || autoUpd == "aggressive") && !string.IsNullOrWhiteSpace(Settings.StartScript))
+        if ((autoUpd == "true" || autoUpd == "aggressive"))
         {
             AddLoadStatus("Will track comfy git pull auto-update task...");
             tasks.Add(Task.Run(async () =>
@@ -593,7 +614,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
                     Logs.Error($"Nunchaku is not currently supported on your Torch version ({torchPipVers} not in range [2.5, 2.9]).");
                     isValid = false;
                 }
-                string nunchakuTargetVersion = "1.0.0";
+                string nunchakuTargetVersion = "1.0.2";
                 // eg https://github.com/nunchaku-tech/nunchaku/releases/download/v0.3.2/nunchaku-0.3.2+torch2.5-cp310-cp310-linux_x86_64.whl
                 string url = $"https://github.com/nunchaku-tech/nunchaku/releases/download/v{nunchakuTargetVersion}/nunchaku-{nunchakuTargetVersion}+torch{torchVers}-cp{pyVers}-cp{pyVers}-{osVers}.whl";
                 if (isValid)
@@ -663,7 +684,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
         ("yarl", "yarl", ">=", "1.18.0"),
         ("av", "av", ">=", "14.2.0"),
         ("spandrel", "spandrel", ">=", "0.4.1"),
-        ("transformers", "transformers", ">=", "4.37.2"),
+        ("transformers", "transformers", ">=", "4.50.3"),
         ("ultralytics", "ultralytics", "==", "8.3.197"), // This is hard-pinned due to the malicious 8.3.41 incident, only manual updates when needed until security practices are improved.
         ("pip", "pip", ">=", "25.0") // Don't need latest, just can't be too old, this is mostly just here for a sanity check.
     ];

@@ -8,6 +8,7 @@ import numpy as np
 from math import ceil
 from latent_preview import TAESDPreviewerImpl
 from comfy_execution.utils import get_executing_context
+from comfy_extras.nodes_flux import Flux2Scheduler
 
 def slerp(val, low, high):
     low_norm = low / torch.norm(low, dim=1, keepdim=True)
@@ -57,6 +58,7 @@ def swarm_send_extra_preview(id, image):
     server = PromptServer.instance
     metadata = get_preview_metadata()
     metadata["mime_type"] = "image/jpeg"
+    metadata["id"] = id
     metadata_json = json.dumps(metadata).encode('utf-8')
     bytesIO = BytesIO()
     image.save(bytesIO, format="JPEG", quality=90, compress_level=4)
@@ -75,6 +77,7 @@ def swarm_send_animated_preview(id, images):
     image_bytes = bytesIO.getvalue()
     metadata = get_preview_metadata()
     metadata["mime_type"] = "image/webp"
+    metadata["id"] = id
     metadata_json = json.dumps(metadata).encode('utf-8')
     combined_data = bytearray()
     combined_data.extend(struct.pack(">I", len(metadata_json)))
@@ -243,7 +246,7 @@ class SwarmKSampler:
                 "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.5, "round": 0.001}),
                 "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                "scheduler": (["turbo", "align_your_steps", "ltxv", "ltxv-image"] + comfy.samplers.KSampler.SCHEDULERS, ),
+                "scheduler": (["turbo", "align_your_steps", "ltxv", "ltxv-image", "flux2"] + comfy.samplers.KSampler.SCHEDULERS, ),
                 "positive": ("CONDITIONING", ),
                 "negative": ("CONDITIONING", ),
                 "latent_image": ("LATENT", ),
@@ -290,6 +293,10 @@ class SwarmKSampler:
         elif scheduler == "ltx" or scheduler == "ltxv-image":
             from comfy_extras.nodes_lt import LTXVScheduler
             sigmas = LTXVScheduler().get_sigmas(steps, 2.05, 0.95, True, 0.1, latent_image if scheduler == "ltxv-image" else None)[0]
+        elif scheduler == "flux2":
+            width = latent_image["samples"].shape[-1]
+            height = latent_image["samples"].shape[-2]
+            sigmas = Flux2Scheduler.execute(steps, width * 16, height * 16).result[0]
         elif scheduler == "align_your_steps":
             if isinstance(model.model, SDXL):
                 model_type = "SDXL"

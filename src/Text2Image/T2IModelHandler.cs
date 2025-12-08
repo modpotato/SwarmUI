@@ -4,11 +4,10 @@ using LiteDB;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
+using SwarmUI.Media;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 
 namespace SwarmUI.Text2Image;
 
@@ -388,7 +387,8 @@ public class T2IModelHandler
             {
                 if (File.Exists(prefix + suffix))
                 {
-                    return new Image(File.ReadAllBytes(prefix + suffix), Image.ImageType.IMAGE, suffix.AfterLast('.')).ToMetadataFormat();
+                    ImageFile loaded = new Image(File.ReadAllBytes(prefix + suffix), MediaType.GetByExtension(suffix.AfterLast('.')));
+                    return loaded.ToMetadataFormat();
                 }
             }
             catch (Exception ex)
@@ -571,7 +571,7 @@ public class T2IModelHandler
                     specialFormat = "bnb_fp4";
                     break;
                 }
-                if (key.EndsWith(".scale_weight"))
+                if (key.EndsWith(".scale_weight") || key.EndsWith(".weight_scale"))
                 {
                     specialFormat = "fp8_scaled";
                     break;
@@ -757,10 +757,16 @@ public class T2IModelHandler
         }
         Parallel.ForEach(Directory.EnumerateDirectories(actualFolder), subfolder =>
         {
-            string path = $"{prefix}{subfolder.Replace('\\', '/').AfterLast('/')}";
-            if (path.AfterLast('/') == ".git")
+            string simpleName = subfolder.Replace('\\', '/').AfterLast('/');
+            string path = $"{prefix}{simpleName}";
+            if (simpleName == ".git")
             {
                 Logs.Warning($"You have a .git folder in your {ModelType} model folder '{pathBase}/{path}'! That's not supposed to be there.");
+                return;
+            }
+            if (simpleName.StartsWithFast('.'))
+            {
+                Logs.Verbose($"[Model Scan] Skipping hidden folder {subfolder}");
                 return;
             }
             try
@@ -780,6 +786,11 @@ public class T2IModelHandler
         {
             string fixedFileName = file.Replace('\\', '/');
             string fn = fixedFileName.AfterLast('/');
+            if (fn.StartsWithFast('.'))
+            {
+                Logs.Verbose($"[Model Scan] Skipping hidden file {fixedFileName}");
+                return;
+            }
             string fullFilename = $"{prefix}{fn}";
             if (Models.TryGetValue(fullFilename, out T2IModel existingModel))
             {

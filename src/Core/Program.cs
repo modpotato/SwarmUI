@@ -214,12 +214,12 @@ public class Program
                 DateTimeOffset date = DateTimeOffset.Parse(parts[1].Trim()).ToUniversalTime();
                 CurrentGitDate = $"{date:yyyy-MM-dd HH:mm:ss}";
                 TimeSpan relative = DateTimeOffset.UtcNow - date;
-                string ago = $"{relative.Hours} hour{(relative.Hours == 1 ? "" : "s")} ago";
-                if (relative.Hours > 48)
+                string ago = $"{Math.Floor(relative.TotalHours)} hour{(Math.Floor(relative.TotalHours) == 1 ? "" : "s")} ago";
+                if (relative.TotalHours > 48)
                 {
-                    ago = $"{relative.Days} day{(relative.Days == 1 ? "" : "s")} ago";
+                    ago = $"{Math.Floor(relative.TotalDays)} day{(Math.Floor(relative.TotalDays) == 1 ? "" : "s")} ago";
                 }
-                else if (relative.Hours == 0)
+                else if (relative.TotalHours < 1)
                 {
                     ago = $"{relative.Minutes} minute{(relative.Minutes == 1 ? "" : "s")} ago";
                 }
@@ -233,9 +233,8 @@ public class Program
         }, "check current git commit"));
         waitFor.Add(Utilities.RunCheckedTask(async () =>
         {
-            NvidiaUtil.NvidiaInfo[] gpuInfo = NvidiaUtil.QueryNvidia();
             SystemStatusMonitor.HardwareInfo.RefreshMemoryStatus();
-            MemoryStatus memStatus = SystemStatusMonitor.HardwareInfo.MemoryStatus;
+            MemoryStatus memStatus = SystemStatusMonitor.HardwareInfo?.MemoryStatus ?? new();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 Logs.Init($"CPU Cores: {Environment.ProcessorCount} | RAM: {new MemoryNum((long)memStatus.TotalPhysical)} total, {new MemoryNum((long)memStatus.AvailablePhysical)} available, {new MemoryNum((long)memStatus.TotalPageFile)} total page file, {new MemoryNum((long)memStatus.AvailablePageFile)} available page file");
@@ -252,6 +251,10 @@ public class Program
             {
                 Logs.Init($"CPU Cores: {Environment.ProcessorCount} | RAM: {new MemoryNum((long)memStatus.TotalPhysical)} total, {new MemoryNum((long)memStatus.AvailablePhysical)} available, {new MemoryNum((long)memStatus.TotalVirtual)} virtual, {new MemoryNum((long)memStatus.TotalVirtual - (long)memStatus.TotalPhysical)} swap");
             }
+        }, "load cpu hardware info"));
+        waitFor.Add(Utilities.RunCheckedTask(async () =>
+        {
+            NvidiaUtil.NvidiaInfo[] gpuInfo = NvidiaUtil.QueryNvidia();
             if (gpuInfo is not null && gpuInfo.Length > 0)
             {
                 JObject gpus = [];
@@ -420,6 +423,11 @@ public class Program
             Logs.Error($"Failed to create directories for models. You may need to check your ModelRoot or SDModelFolder settings. {ex.Message}");
         }
         string[] roots = [.. ServerSettings.Paths.ModelRoot.Split(';').Where(p => !string.IsNullOrWhiteSpace(p))];
+        if (roots.Length == 0)
+        {
+            Logs.Error("No ModelRoot paths defined! You must set at least one model root path. Presuming default value. Please correct your settings.");
+            roots = ["Models"];
+        }
         int downloadRootId = Math.Abs(ServerSettings.Paths.DownloadToRootID) % roots.Length;
         void buildPathList(string folder, T2IModelHandler handler)
         {
@@ -535,7 +543,7 @@ public class Program
         Extensions.RunOnAllExtensions(e => e.OnShutdown());
         Extensions.Extensions.Clear();
         Logs.Verbose("Shutdown image metadata tracker...");
-        ImageMetadataTracker.Shutdown();
+        OutputMetadataTracker.Shutdown();
         Logs.Info("All core shutdowns complete.");
         if (Logs.LogSaveThread is not null)
         {

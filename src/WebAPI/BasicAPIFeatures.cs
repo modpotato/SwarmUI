@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Microsoft.Extensions.Primitives;
 using System.Reflection;
 using FreneticUtilities.FreneticToolkit;
+using SwarmUI.Media;
 
 namespace SwarmUI.WebAPI;
 
@@ -27,6 +28,7 @@ public static class BasicAPIFeatures
         API.RegisterAPICall(InstallConfirmWS, true, Permissions.Install);
         API.RegisterAPICall(GetMyUserData, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(SetStarredModels, true, Permissions.FundamentalModelAccess);
+        API.RegisterAPICall(SetPresetLinks, true, Permissions.FundamentalModelAccess);
         API.RegisterAPICall(AddNewPreset, true, Permissions.ManagePresets);
         API.RegisterAPICall(DuplicatePreset, true, Permissions.ManagePresets);
         API.RegisterAPICall(DeletePreset, true, Permissions.ManagePresets);
@@ -222,6 +224,14 @@ public static class BasicAPIFeatures
             "starred_models": {
                 "LoRA": ["one", "two"]
             },
+            "model_preset_links": {
+                "Stable-Diffusion": {
+                    "modelnamehere": ["preset_title"]
+                },
+                "LoRA": {
+                    "modelnamehere": ["preset_title"]
+                }
+            },
             "autocompletions": ["Word\nword\ntag\n3"]
         """)]
     public static async Task<JObject> GetMyUserData(Session session)
@@ -235,6 +245,7 @@ public static class BasicAPIFeatures
             ["language"] = session.User.Settings.Language,
             ["permissions"] = JArray.FromObject(session.User.GetPermissions()),
             ["starred_models"] = JObject.Parse(session.User.GetGenericData("starred_models", "full") ?? "{}"),
+            ["model_preset_links"] = JObject.Parse(session.User.GetGenericData("modelpresetlinks", "full") ?? "{}"),
             ["autocompletions"] = string.IsNullOrWhiteSpace(settings.Source) ? null : new JArray(AutoCompleteListHelper.GetData(settings.Source, settings.EscapeParens, settings.Suffix, settings.SpacingMode)),
             ["agentic_imagen_prompts"] = new JObject()
             {
@@ -253,6 +264,16 @@ public static class BasicAPIFeatures
     {
         raw.Remove("session_id");
         session.User.SaveGenericData("starred_models", "full", raw.ToString(Formatting.None));
+        session.User.Save();
+        return new JObject() { ["success"] = true };
+    }
+
+    [API.APIDescription("Saves a reference to a preset for a model or LoRA to the user's data.", "\"success\": \"true\"")]
+    public static async Task<JObject> SetPresetLinks(Session session,
+        [API.APIParameter("Send the raw data as eg 'LoRA': { 'Name': ['Preset'] }, 'Stable-Diffusion': { ... }")] JObject raw)
+    {
+        raw.Remove("session_id");
+        session.User.SaveGenericData("modelpresetlinks", "full", raw.ToString(Formatting.None));
         session.User.Save();
         return new JObject() { ["success"] = true };
     }
@@ -290,7 +311,7 @@ public static class BasicAPIFeatures
                 Logs.Info($"User {session.User.UserID} tried to set a preset preview image to forbidden path: {preview_image}");
                 return new JObject() { ["preset_fail"] = "Forbidden preview-image path." };
             }
-            Image img = Image.FromDataString(preview_image).ToMetadataJpg(preview_image_metadata);
+            ImageFile img = ImageFile.FromDataString(preview_image).ToMetadataJpg(preview_image_metadata);
             preview_image = img.AsDataString();
         }
         T2IPreset preset = new()

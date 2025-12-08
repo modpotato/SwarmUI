@@ -4,10 +4,12 @@
 | ----  | ---- | ---- | ---- | ---- | ---- | ---- |
 [Stable Video Diffusion](#stable-video-diffusion) | 2023 | Stability AI | 1B Unet | Image2Video | Yes | Outdated |
 [Hunyuan Video](#hunyuan-video) | 2024 | Tencent | 12B MMDiT | Text2Video and Image2Video variants | No | Modern, Decent Quality |
+[Hunyuan Video 1.5](#hunyuan-video-15) | 2025 | Tencent | 8B MMDiT | Text2Video and Image2Video variants | No | Modern, Decent Quality |
 [Genmo Mochi 1](#genmo-mochi-1-text2video) | 2024 | Genmo | 10B DiT | Text2Video | ? | Outdated |
 [Lightricks LTX Video](#lightricks-ltx-video) | 2024 | Lightricks | 3B DiT | Text/Image 2Video | ? | Modern, Fast but ugly |
 [Nvidia Cosmos](#nvidia-cosmos) | 2025 | NVIDIA | Various | Text/Image/Video 2Video | ? | Modern, very slow, poor quality |
-[Wan 2.1](#wan-21) | 2025 | Alibaba - Wan-AI | 1.3B and 14B | Text/Image 2Video | No | Modern, Incredible Quality |
+[Wan 2.1](#wan-21) and [2.2](#wan-22) | 2025 | Alibaba - Wan-AI | 1.3B, 5B, 14B | Text/Image 2Video | No | Modern, Incredible Quality |
+[Kandinsky 5](#kandinsky-5) | 2025 | Kandinsky Lab | 2B, 19B | Text/Image 2Video | No | Modern, Decent Quality |
 
 Support for image models and technical formats is documented in [the Model Support doc](/docs/Model%20Support.md), as well as explanation of the table columns above
 
@@ -73,6 +75,8 @@ There's a full step by step guide for video model usage here: <https://github.co
 ## Hunyuan Video
 
 ![hunyuan-video](https://github.com/user-attachments/assets/12d898c4-d9c8-447e-99b3-42ad0f0eb16d)
+
+**This section is for the original Hunyuan Video (v1), for later version see next major section below.**
 
 ### Hunyuan Video Basic Install
 
@@ -162,6 +166,50 @@ There's a full step by step guide for video model usage here: <https://github.co
 - The model seems to have visual quality artifacts
     - Set Video Steps higher, at least `30`, to reduce these
 - `Sigma Shift` default value is `7`, you do not need to edit it
+
+## Hunyuan Video 1.5
+
+https://github.com/user-attachments/assets/b3605901-78ed-4f13-a065-adfbc0d63232
+
+*(Hunyuan Video 1.5 - T2V 720p non-distilled CFG=6 Steps=20 Frames=121)*
+
+- SwarmUI supports [Hunyuan Video 1.5 Models](https://huggingface.co/tencent/HunyuanVideo-1.5)
+    - There appear to be quality issues not related to the Swarm impl, either in the model or in the upstream comfy impl.
+- Downloads here <https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/tree/main/split_files/diffusion_models>
+    - save to `diffusion_models` folder
+    - There are variants for Text2Video vs Image2Video
+        - Despite the labeled difference, both variants can equally do both text2video and image2video.
+        - Also a dedicated superresolution v2v upscaler, see [below](#hunyuan-video-15-superresolution-model)
+    - There are 480p and 720p variants
+        - Swarm will assume all models are 720p (`960x960`). For the 480p models, you may want to edit the model metadata and set the resolution to `640x640`.
+        - They are actually pretty friendly to mixing the resolution, 720p can do 480 fine and 480p can mostly do 720.
+    - There are CFG Distilled and non-distilled versions
+        - CFG distilled runs faster and with less vram, non-distilled is slower but MIGHT yield better quality
+- The VAE is a 16x16 downsample (as opposed to most prior models using 8x8)
+    - This allows HyVid1.5 to run faster than most, but with some quality reduction on small details
+- **Parameters**:
+    - **CFG:** `1` for Distilled, otherwise normal high CFG values, eg `6`
+    - **Steps:** Normal step counts (20+)
+    - **Frames:** Trained for `121` (5 seconds), shorter lengths work fine too, or longer up to 241 (10 seconds). When not specified, Swarm will default to `73` (3 seconds).
+        - You can do Frames=`1` for image generation.
+    - **FPS:** The model is trained for `24` fps
+    - **Resolution:** Aside from the trained resolution, the models seem happy with different smaller resolutions or different aspect ratios as well.
+    - **Sigma Shift:** defaults to `7`. They recommend lowering to `5` for 480p and raising to `9` on specifically `720p T2V`.
+        - SuperResolution uses `2`
+
+### Hunyuan Video 1.5 SuperResolution Model
+
+- The SuperResolution models function equivalent to basic models, and are meant to be used as a Refiner model.
+    - Save in the same folder as the rest.
+    - You may need to manually edit the model metadata to architecture `Hunyuan Video 1.5 SuperResolution`
+    - Probably edit model metadata to set the resolution to `1920x1080` (or approx 1:1 of `1456x1456`)
+    - The SR models have "distilled" in the filename but seem to respond better to CFG=6 and make a mess at CFG=1.
+- There are dedicated latent upscale models here <https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/tree/main/split_files/latent_upscale_models>
+    - Save to `(SwarmUI)/Models/latent_upscale_models` (create the folder if it doesn't already exist)
+    - Select the model as the *Refiner Upscale Method*
+    - If you have a 720p gen, and you are using the 1080p upscale, set Refiner Upscale to `1.5`.
+
+- Not yet supported, WIP.
 
 ## Genmo Mochi 1 (Text2Video)
 
@@ -415,7 +463,8 @@ There's a full step by step guide for video model usage here: <https://github.co
             - Reference **CFG** is `3.5`
             - Native **FPS** of `24`
         - There are some Wan 2.2 Lightx2v models available
-            - Notably this pair: <https://huggingface.co/Kijai/WanVideo_comfy/tree/main/Wan22-Lightning>
+            - Notably this pair: <https://huggingface.co/Kijai/WanVideo_comfy/tree/main/LoRAs/Wan22-Lightning>
+                - There's also an enhanced I2V Lightning High LoRA: <https://huggingface.co/Kijai/WanVideo_comfy/tree/main/LoRAs/Wan22_Lightx2v>
             - You use a separate High and Low variant together
             - There are two ways to set the pair loras...
                 - Option 1: via the UI
@@ -432,3 +481,22 @@ There's a full step by step guide for video model usage here: <https://github.co
             - For I2V, this seems to "just work"
             - For T2V, this has some visual oddities but does still mostly work
         - Wan 2.2 has an official prompting guide book: <https://alidocs.dingtalk.com/i/nodes/EpGBa2Lm8aZxe5myC99MelA2WgN7R35y>
+
+## Kandinsky 5
+
+- Kandinsky 5 Video Lite and Video Pro are supported in SwarmUI!
+    - Also the image models, docs [in the image model support doc](/docs/Model%20Support.md#kandinsky-5)
+- They come in a variety of variants, you will have to pick what you want, or experimental with several.
+    - Do you want "Lite" or "Pro"?
+        - Lite is a 2B (very small) video model with a variety of distilled and other variants. Its quality is not quite on par with competitors like Wan 14B, but its small size makes it easier to run.
+            - Files are here <https://huggingface.co/collections/kandinskylab/kandinsky-50-video-lite>
+                - NoCFG or Distilled16Steps are the fastest variants, SFT is supposedly the best quality.
+        - Pro is a 19B (very large) video model with only different quality tune variants.
+            - Files are here <https://huggingface.co/collections/kandinskylab/kandinsky-50-video-pro>
+                - You probably want the SFT 10s version.
+- At time of writing, the current implementation has bugs, and some hacks are used to workaround them. Not all features work. What does work is kinda bad.
+- **Parameters:**
+    - These vary heavily based on model you choose.
+    - **CFG Scale:** for regular models, regular CFG such as `5` works. For CFG-distill and step distill, use CFG of `1`.
+    - **Steps:** For regular, 20 or higher is used. For Step Distill, 16 is the target. Going lower will work but with a severe quality hit.
+    - **Resolution:** All video models primarily target a side length of 640. Higher resolutions can work, Pro handles 960x960 fine.

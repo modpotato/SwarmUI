@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Backends;
 using SwarmUI.Core;
+using SwarmUI.Media;
 using SwarmUI.Text2Image;
 using System.Net.Http;
 using System.Text.Json.Serialization;
@@ -178,17 +179,17 @@ public static class WebhookManager
     }
 
     /// <summary>Sends the every-gen webhook and manual gen webhook.</summary>
-    public static void SendEveryGenWebhook(T2IParamInput input, string imageData, Image imageRaw)
+    public static void SendEveryGenWebhook(T2IParamInput input, string imageData, MediaFile rawFile)
     {
         string webhookPreference = input.Get(T2IParamTypes.Webhooks, "Normal");
         if (webhookPreference == "None")
         {
             return;
         }
-        SendWebhook("Every Gen", HookSettings.EveryGenWebhook, HookSettings.EveryGenWebhookData, input, imageData, imageRaw);
+        SendWebhook("Every Gen", HookSettings.EveryGenWebhook, HookSettings.EveryGenWebhookData, input, imageData, rawFile);
         if (webhookPreference == "Manual")
         {
-            SendWebhook("Manual Gen", HookSettings.ManualGenWebhook, HookSettings.ManualGenWebhookData, input, imageData, imageRaw);
+            SendWebhook("Manual Gen", HookSettings.ManualGenWebhook, HookSettings.ManualGenWebhookData, input, imageData, rawFile);
         }
         // Send to user's personal Discord webhook if configured
         if (input.SourceSession?.User?.Settings is not null)
@@ -214,7 +215,7 @@ public static class WebhookManager
     }
 
     /// <summary>Run a generic webhook directly.</summary>
-    public static Task SendWebhook(string id, string path, string dataStr, T2IParamInput input = null, string imageData = null, Image imageRaw = null)
+    public static Task SendWebhook(string id, string path, string dataStr, T2IParamInput input = null, string imageData = null, MediaFile rawFile = null)
     {
         try
         {
@@ -232,9 +233,9 @@ public static class WebhookManager
                     dataStr = dataStr["[discord_image]".Length..];
                 }
                 JObject data = ParseJsonForHook(dataStr, input, imageData);
-                if (doDiscordImage && imageRaw is not null)
+                if (doDiscordImage && rawFile is not null)
                 {
-                    content = Utilities.MultiPartFormContentDiscordImage(imageRaw, data);
+                    content = Utilities.MultiPartFormContentDiscordFile(rawFile, data);
                 }
                 else
                 {

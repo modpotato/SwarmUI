@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
+using SwarmUI.Media;
 using SwarmUI.Utils;
 
 namespace SwarmUI.Text2Image;
@@ -133,6 +134,9 @@ public class T2IParamInput
     /// <summary>A list of any user requested presets not yet applied.</summary>
     public List<T2IPreset> PendingPresets = [];
 
+    /// <summary>Optional action, if present, takes raw backend data, as a pair of data-type and raw binary data.</summary>
+    public Action<string, byte[]> ReceiveRawBackendData = null;
+
     /// <summary>The session this input came from.</summary>
     public Session SourceSession;
 
@@ -261,9 +265,9 @@ public class T2IParamInput
 
     public static object SimplifyParamVal(object val)
     {
-        if (val is Image img)
+        if (val is MediaFile file)
         {
-            return img.AsBase64;
+            return file.AsBase64;
         }
         else if (val is List<Image> imgList)
         {
@@ -301,7 +305,7 @@ public class T2IParamInput
 
     public static JToken MetadatableToJTok(object val)
     {
-        if (val is Image)
+        if (val is MediaFile)
         {
             return null;
         }
