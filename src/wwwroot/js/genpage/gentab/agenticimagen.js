@@ -21,16 +21,16 @@ class AgenticImagen {
         this.models = [];
         this.turnAModel = null;
         this.turnBModel = null;
-        
+
         // Configurable system prompts (loaded from user settings)
         this.turnASystemPrompt = null;
         this.turnBSystemPrompt = null;
-        
+
         // UI state
         this.isVisible = false;
         this.isMinimized = false;
         this.dragState = null;
-        
+
         // Widget position
         this.position = { x: 100, y: 100 };
         this.size = { width: 600, height: 700 };
@@ -47,13 +47,13 @@ class AgenticImagen {
      */
     async init() {
         console.log('Initializing Agentic Imagen...');
-        
+
         // Load configurable system prompts from user data
         try {
             let userData = await new Promise((resolve, reject) => {
                 genericRequest('GetMyUserData', {}, resolve, 0, reject);
             });
-            
+
             if (userData.agentic_imagen_prompts) {
                 this.turnASystemPrompt = userData.agentic_imagen_prompts.turn_a || this.getDefaultTurnAPrompt();
                 this.turnBSystemPrompt = userData.agentic_imagen_prompts.turn_b || this.getDefaultTurnBPrompt();
@@ -68,13 +68,13 @@ class AgenticImagen {
             this.turnASystemPrompt = this.getDefaultTurnAPrompt();
             this.turnBSystemPrompt = this.getDefaultTurnBPrompt();
         }
-        
+
         // Load available models from OpenRouter
         try {
             let data = await new Promise((resolve, reject) => {
                 genericRequest('GetOpenRouterModels', {}, resolve, 0, reject);
             });
-            
+
             if (data.error) {
                 console.error('OpenRouter API error:', data.error);
                 return;
@@ -103,14 +103,14 @@ class AgenticImagen {
     populateModelDropdowns() {
         let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
         let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
-        
+
         if (!turnASelect || !turnBSelect) {
             return;
         }
 
         [turnASelect, turnBSelect].forEach(select => {
             select.innerHTML = '';
-            
+
             if (this.models.length === 0) {
                 select.innerHTML = '<option value="">No models available</option>';
                 return;
@@ -130,10 +130,10 @@ class AgenticImagen {
                 'google/gemini-pro-vision'
             ];
 
-            let recommended = this.models.filter(m => 
+            let recommended = this.models.filter(m =>
                 recommendedModels.some(r => m.id.includes(r)) && m.supportsVision
             );
-            let others = this.models.filter(m => 
+            let others = this.models.filter(m =>
                 !recommendedModels.some(r => m.id.includes(r))
             );
 
@@ -175,7 +175,7 @@ class AgenticImagen {
 
         this.isVisible = true;
         widget.style.display = 'block';
-        
+
         // Initialize if first time showing
         if (this.models.length === 0) {
             this.init();
@@ -212,7 +212,7 @@ class AgenticImagen {
         let widget = document.getElementById('agentic_imagen_widget');
         let body = document.getElementById('agentic_imagen_body');
         let footer = document.getElementById('agentic_imagen_footer');
-        
+
         if (this.isMinimized) {
             widget.classList.add('minimized');
             body.style.display = 'none';
@@ -229,10 +229,10 @@ class AgenticImagen {
      */
     startDrag(e) {
         e.preventDefault();
-        
+
         let widget = document.getElementById('agentic_imagen_widget');
         let rect = widget.getBoundingClientRect();
-        
+
         this.dragState = {
             startX: e.clientX,
             startY: e.clientY,
@@ -251,13 +251,13 @@ class AgenticImagen {
         if (!this.dragState) return;
 
         e.preventDefault();
-        
+
         let deltaX = e.clientX - this.dragState.startX;
         let deltaY = e.clientY - this.dragState.startY;
-        
+
         this.position.x = this.dragState.initialX + deltaX;
         this.position.y = this.dragState.initialY + deltaY;
-        
+
         this.updatePosition();
     }
 
@@ -314,7 +314,7 @@ class AgenticImagen {
     handleImageUrl() {
         let urlInput = document.getElementById('agentic_imagen_image_url');
         let url = urlInput?.value.trim();
-        
+
         if (!url) {
             this.targetImage = null;
             this.updateImagePreview();
@@ -343,7 +343,7 @@ class AgenticImagen {
     updateImagePreview() {
         let preview = document.getElementById('agentic_imagen_image_preview');
         let clearBtn = document.getElementById('agentic_imagen_clear_image');
-        
+
         if (!preview) return;
 
         if (this.targetImage) {
@@ -360,20 +360,20 @@ class AgenticImagen {
      */
     clearImage() {
         this.targetImage = null;
-        
+
         let fileInput = document.getElementById('agentic_imagen_image_upload');
         let urlInput = document.getElementById('agentic_imagen_image_url');
-        
+
         if (fileInput) fileInput.value = '';
         if (urlInput) urlInput.value = '';
-        
+
         this.updateImagePreview();
     }
 
     /**
      * Start the agentic refinement process
      */
-    async startRefinement() {
+    async startRefinement(keepTranscript = false) {
         // Validate inputs
         if (!this.targetImage) {
             this.showError('Please provide a target image.');
@@ -406,9 +406,14 @@ class AgenticImagen {
         this.abortController = new AbortController();
 
         this.updateUI();
-        this.clearTranscript();
-        this.addTranscriptMessage('system', 'Starting Agentic Imagen refinement...');
-        
+
+        if (!keepTranscript) {
+            this.clearTranscript();
+            this.addTranscriptMessage('system', 'Starting Agentic Imagen refinement...');
+        } else {
+            this.addTranscriptMessage('system', 'Starting new refinement session with feedback...');
+        }
+
         // If there was pending feedback, log it
         if (this.pendingUserFeedback) {
             this.addTranscriptMessage('user', this.pendingUserFeedback);
@@ -444,7 +449,7 @@ class AgenticImagen {
             this.currentTurn = 'A';
             this.updateUI();
             this.showThinking('A');
-            
+
             try {
                 iteration.turnA = await this.executeTurnA();
             } catch (error) {
@@ -471,7 +476,7 @@ class AgenticImagen {
             this.currentTurn = 'B';
             this.updateUI();
             this.showThinking('B');
-            
+
             try {
                 iteration.turnB = await this.executeTurnB(iteration.generatedImages);
                 iteration.decision = iteration.turnB.decision;
@@ -518,7 +523,7 @@ class AgenticImagen {
         if (response.content) {
             this.addTranscriptMessage('turn-a', response.content);
         }
-        
+
         if (response.toolCalls && response.toolCalls.length > 0) {
             for (let toolCall of response.toolCalls) {
                 this.addTranscriptMessage('tool', `Tool: ${toolCall.name}(${JSON.stringify(toolCall.arguments)})`);
@@ -543,7 +548,7 @@ class AgenticImagen {
                 return null;
             }
             let blob = await response.blob();
-            
+
             // Compress image to reduce size for LLM (JPEG 50%)
             let imgBitmap = await createImageBitmap(blob);
             let canvas = document.createElement('canvas');
@@ -551,7 +556,7 @@ class AgenticImagen {
             canvas.height = imgBitmap.height;
             let ctx = canvas.getContext('2d');
             ctx.drawImage(imgBitmap, 0, 0);
-            
+
             let dataUrl = canvas.toDataURL('image/jpeg', 0.5);
             imgBitmap.close();
             return dataUrl;
@@ -584,7 +589,7 @@ class AgenticImagen {
                 if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('View/') && !url.startsWith('Output/')) {
                     url = 'View/' + url;
                 }
-                
+
                 let dataUrl = await this.imagePathToDataURL(url);
                 if (dataUrl) {
                     additionalImages.push(dataUrl);
@@ -623,6 +628,7 @@ Available tools:
 - set_negative_prompt(text): Set the negative prompt
 - set_aspect_ratio(ratio): Set the aspect ratio for the image (options: 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21)
 - set_param(name, value): Set other parameters like steps, CFG, sampler
+- use_lora(name, strength): Enable a LoRA model (strength 0.1 to 1.0)
 - generate_image(): Trigger an image generation with current settings
 
 Guidelines:
@@ -630,7 +636,8 @@ Guidelines:
 2. Use clear, descriptive tags in Danbooru/image-board style
 3. Include quality tags and composition details
 4. Be specific about subjects, lighting, and mood
-5. After making changes, call generate_image() to test them
+5. Do NOT ask for text to be written in the image (e.g. "text 'hello'", watermarks, signed). Only describe visual elements.
+6. After making changes, call generate_image() to test them
 
 Your goal is to match the target image as closely as possible through iterative refinement.`;
     }
@@ -667,12 +674,10 @@ Guidelines:
         if (loras.length === 0) return '';
 
         // Limit to avoid token overflow if there are too many
-        let displayLoras = loras.slice(0, 200); 
-        
+        let displayLoras = loras.slice(0, 200);
+
         let list = displayLoras.map(lora => {
-            // Note: We don't have trigger words readily available in the simple list.
-            // If we did, we'd append them here.
-            return `- ${lora}: <lora:${lora}:1.0>`;
+            return `- ${lora}`;
         }).join('\n');
 
         if (loras.length > 200) {
@@ -687,12 +692,12 @@ Guidelines:
      */
     buildTurnASystemPrompt() {
         let prompt = this.turnASystemPrompt || this.getDefaultTurnAPrompt();
-        
+
         // Add shared knowledge if enabled
         if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
             let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
             if (knowledgeText.trim()) {
-                prompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
+                prompt += '\n\n**Shared Knowledge:**\nConsider the following shared knowledge when refining the prompt:\n' + knowledgeText.trim();
             }
         }
 
@@ -701,31 +706,29 @@ Guidelines:
         if (enableLoras) {
             let loraList = this.getLoraListForPrompt();
             if (loraList) {
-                prompt += `\n\n**Available LoRAs:**\nYou can use the following LoRAs by adding the syntax <lora:name:strength> to the prompt. Strength is usually between 0.5 and 1.0.\n${loraList}`;
+                prompt += `\n\n**Available LoRAs:**\nThe following LoRAs are available. You may use them if they fit the style or subject. Use the \`use_lora(name, strength)\` tool to apply them.\n${loraList}`;
             }
         }
-        
-        return prompt;
-    }
 
-    /**
+        return prompt;
+    }    /**
      * Build Turn A user message
      */
     buildTurnAUserMessage() {
-        let message = `Target image and tags: ${this.tags || 'No tags provided'}\n\n`;
-        
+        let message = `Target image and tags: ${this.tags || 'No tags provided'} \n\n`;
+
         if (this.iterations.length > 0) {
             let lastIter = this.iterations[this.iterations.length - 1];
-            message += `Previous iteration feedback from Turn B:\n${lastIter.turnB.content}\n\n`;
+            message += `Previous iteration feedback from Turn B: \n${lastIter.turnB.content} \n\n`;
         }
 
         if (this.pendingUserFeedback) {
-            message += `USER FEEDBACK / GUIDANCE: ${this.pendingUserFeedback}\n\n`;
+            message += `USER FEEDBACK / GUIDANCE: ${this.pendingUserFeedback} \n\n`;
             this.pendingUserFeedback = null; // Clear after using
         }
 
         message += 'Please analyze the target image and provide your next refinement step.';
-        
+
         return message;
     }
 
@@ -734,7 +737,7 @@ Guidelines:
      */
     buildTurnBSystemPrompt() {
         let prompt = this.turnBSystemPrompt || this.getDefaultTurnBPrompt();
-        
+
         // Add shared knowledge if enabled
         if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
             let knowledgeText = getUserSetting('sharedknowledge.knowledgetext', '');
@@ -742,7 +745,7 @@ Guidelines:
                 prompt += '\n\n**Shared Knowledge:**\n' + knowledgeText.trim();
             }
         }
-        
+
         return prompt;
     }
 
@@ -755,11 +758,11 @@ Guidelines:
         let width = document.getElementById('input_width')?.value || 'unknown';
         let height = document.getElementById('input_height')?.value || 'unknown';
 
-        let message = `Target image tags: ${this.tags || 'No tags provided'}\n\n`;
-        message += `Current settings:\n`;
-        message += `- Positive prompt: ${currentPrompt}\n`;
-        message += `- Negative prompt: ${currentNegPrompt}\n`;
-        message += `- Resolution: ${width}x${height}\n\n`;
+        let message = `Target image tags: ${this.tags || 'No tags provided'} \n\n`;
+        message += `Current settings: \n`;
+        message += `- Positive prompt: ${currentPrompt} \n`;
+        message += `- Negative prompt: ${currentNegPrompt} \n`;
+        message += `- Resolution: ${width}x${height} \n\n`;
 
         if (generatedImages && generatedImages.length > 0) {
             message += `Generated ${generatedImages.length} image(s) this iteration.\n\n`;
@@ -775,11 +778,11 @@ Guidelines:
      */
     parseTurnBDecision(content) {
         let upperContent = content.toUpperCase();
-        
+
         if (upperContent.includes('DECISION: STOP') || upperContent.includes('DECISION:STOP')) {
             return 'stop';
         }
-        
+
         if (upperContent.includes('DECISION: CONTINUE') || upperContent.includes('DECISION:CONTINUE')) {
             return 'continue';
         }
@@ -822,8 +825,8 @@ Guidelines:
                 parameters: {
                     type: 'object',
                     properties: {
-                        ratio: { 
-                            type: 'string', 
+                        ratio: {
+                            type: 'string',
                             description: 'The aspect ratio to use. Options: 1:1, 4:3, 3:2, 8:5, 16:9, 21:9, 3:4, 2:3, 5:8, 9:16, 9:21',
                             enum: ["1:1", "4:3", "3:2", "8:5", "16:9", "21:9", "3:4", "2:3", "5:8", "9:16", "9:21"]
                         }
@@ -841,6 +844,18 @@ Guidelines:
                         value: { description: 'Parameter value' }
                     },
                     required: ['name', 'value']
+                }
+            },
+            {
+                name: 'use_lora',
+                description: 'Enable a LoRA model',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string', description: 'The name of the LoRA to use' },
+                        strength: { type: 'number', description: 'The LoRA strength (default 1.0)' }
+                    },
+                    required: ['name', 'strength']
                 }
             },
             {
@@ -965,6 +980,9 @@ Guidelines:
             case 'set_param':
                 this.setParam(args.name, args.value);
                 break;
+            case 'use_lora':
+                this.useLora(args.name, args.strength);
+                break;
             case 'generate_image':
                 // Image generation handled separately in iteration loop
                 break;
@@ -996,6 +1014,30 @@ Guidelines:
     }
 
     /**
+     * Use a LoRA model (append to prompt)
+     */
+    useLora(name, strength) {
+        let promptBox = document.getElementById('alt_prompt_textbox');
+        if (!promptBox) return;
+
+        let currentPrompt = promptBox.value;
+        // Clean existing LoRA tag for this LoRA if present to avoid duplicates
+        // Escape special chars in name just in case
+        let escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Regex to find <lora:NAME:...> or <lora:NAME> case insensitive
+        let regex = new RegExp(`<lora:${escapedName}(:[^>]+)?>`, 'gi');
+        currentPrompt = currentPrompt.replace(regex, '');
+
+        // Append new tag
+        strength = strength !== undefined ? strength : 1.0;
+        let tag = `<lora:${name}:${strength}>`;
+        currentPrompt = (currentPrompt.trim() + ' ' + tag).trim();
+
+        promptBox.value = currentPrompt;
+        triggerChangeFor(promptBox);
+    }
+
+    /**
      * Set aspect ratio in Generate tab
      */
     setAspectRatio(ratio) {
@@ -1022,10 +1064,10 @@ Guidelines:
      */
     async generateImages() {
         this.addTranscriptMessage('system', 'Generating image...');
-        
+
         // Capture self to ensure proper context in callbacks
         const self = this;
-        
+
         return new Promise((resolve, reject) => {
             // Use the main generation handler
             if (!mainGenHandler) {
@@ -1036,21 +1078,21 @@ Guidelines:
             // Track when generation completes
             let completedImages = [];
             let originalHandleData = mainGenHandler.internalHandleData;
-            
+
             // Temporarily override the internal data handler to track progress
-            mainGenHandler.internalHandleData = function(data, images, discardable, timeLastGenHit, actualInput, socketId, socket, isPreview) {
+            mainGenHandler.internalHandleData = function (data, images, discardable, timeLastGenHit, actualInput, socketId, socket, isPreview) {
                 // Call original handler first to ensure UI updates
                 try {
                     originalHandleData.apply(this, arguments);
                 } catch (e) {
                     console.error("Error in original handle data:", e);
                 }
-                
+
                 // Check for completion (socket close intention)
                 if ('socket_intention' in data && data.socket_intention == 'close') {
                     // Restore original handler
                     mainGenHandler.internalHandleData = originalHandleData;
-                    
+
                     // Resolve our promise
                     self.addTranscriptMessage('system', `Generated ${completedImages.length} image(s)`);
                     resolve(completedImages);
@@ -1097,7 +1139,7 @@ Guidelines:
      */
     async applyAndGenerate() {
         this.applyToGenerateTab();
-        
+
         // Trigger generation
         if (mainGenHandler) {
             mainGenHandler.doGenerate();
@@ -1130,14 +1172,14 @@ Guidelines:
         let thinkingDiv = document.createElement('div');
         thinkingDiv.id = 'agentic_imagen_thinking';
         thinkingDiv.className = 'agentic-imagen-message agentic-imagen-message-thinking';
-        
+
         let label = turn === 'A' ? 'Prompt Engineer is thinking...' : 'Critic is reviewing...';
-        
+
         thinkingDiv.innerHTML = `
-            <div class="agentic-imagen-message-header">
+            < div class="agentic-imagen-message-header" >
                 <span class="agentic-imagen-message-icon">🤔</span>
                 <span class="agentic-imagen-message-label">${label}</span>
-            </div>
+            </div >
             <div class="agentic-imagen-thinking-dots">
                 <span style="animation-delay: 0s">.</span><span style="animation-delay: 0.2s">.</span><span style="animation-delay: 0.4s">.</span>
             </div>
@@ -1166,7 +1208,7 @@ Guidelines:
 
         let messageDiv = document.createElement('div');
         messageDiv.className = 'agentic-imagen-message agentic-imagen-message-' + type;
-        
+
         let typeLabel = {
             'system': 'System',
             'turn-a': 'Prompt Engineer',
@@ -1191,38 +1233,38 @@ Guidelines:
             if (match) {
                 let toolName = match[1];
                 let toolArgs = match[2];
-                
+
                 messageDiv.innerHTML = `
-                    <div class="agentic-imagen-message-header">
+            < div class="agentic-imagen-message-header" >
                         <span class="agentic-imagen-message-icon">${icon}</span>
                         <span class="agentic-imagen-message-label">${typeLabel}</span>
                         <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <details class="agentic-imagen-tool-details">
-                        <summary>Used tool: <strong>${escapeHtml(toolName)}</strong></summary>
-                        <div class="agentic-imagen-tool-args"><code>${escapeHtml(toolArgs)}</code></div>
-                    </details>
-                `;
+                    </div >
+            <details class="agentic-imagen-tool-details">
+                <summary>Used tool: <strong>${escapeHtml(toolName)}</strong></summary>
+                <div class="agentic-imagen-tool-args"><code>${escapeHtml(toolArgs)}</code></div>
+            </details>
+        `;
             } else {
                 messageDiv.innerHTML = `
-                    <div class="agentic-imagen-message-header">
+            < div class="agentic-imagen-message-header" >
                         <span class="agentic-imagen-message-icon">${icon}</span>
                         <span class="agentic-imagen-message-label">${typeLabel}</span>
                         <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
-                `;
+                    </div >
+            <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+        `;
             }
         } else {
             // Regular messages
             messageDiv.innerHTML = `
-                <div class="agentic-imagen-message-header">
+            < div class="agentic-imagen-message-header" >
                     <span class="agentic-imagen-message-icon">${icon}</span>
                     <span class="agentic-imagen-message-label">${typeLabel}</span>
                     <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                </div>
-                <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
-            `;
+                </div >
+            <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+        `;
         }
 
         transcript.appendChild(messageDiv);
@@ -1264,8 +1306,8 @@ Guidelines:
             if (resultsSection) resultsSection.style.display = 'none';
             if (userInputSection) userInputSection.style.display = 'block';
         } else if (this.status === 'running') {
-            let turnText = this.currentTurn === 'A' ? 'Turn A thinking' : 
-                          this.currentTurn === 'B' ? 'Turn B reviewing' : 'Processing';
+            let turnText = this.currentTurn === 'A' ? 'Turn A thinking' :
+                this.currentTurn === 'B' ? 'Turn B reviewing' : 'Processing';
             if (statusText) statusText.textContent = 'Running';
             if (progressText) progressText.textContent = `Iteration ${this.currentIteration} / ${this.maxIterations} - ${turnText}`;
             if (startBtn) startBtn.disabled = true;
@@ -1344,16 +1386,15 @@ Guidelines:
         this.finalConfig = null;
         this.currentTurn = null;
         // Do not clear pendingUserFeedback here, as user might have just typed it
-        
+
         // Clear UI
         this.clearTranscript();
-        
+
         let resultsDiv = document.getElementById('agentic_imagen_results_content');
         if (resultsDiv) resultsDiv.innerHTML = '';
-        
-        let feedbackInput = document.getElementById('agentic_imagen_user_feedback');
+
         // Do not clear feedback input here
-        
+
         this.updateUI();
         this.addTranscriptMessage('system', 'Session reset. Ready to start new refinement.');
     }
@@ -1367,15 +1408,18 @@ Guidelines:
 
         let feedback = input.value.trim();
         this.pendingUserFeedback = feedback;
-        
+
         this.addTranscriptMessage('user', feedback);
         input.value = '';
-        
-        // If idle, maybe we should start? For now just queue it.
-        if (this.status === 'idle') {
-            this.addTranscriptMessage('system', 'Feedback queued for next run.');
-        } else if (this.status === 'completed') {
-            this.addTranscriptMessage('system', 'Feedback queued. Click "Start Agentic Refinement" to begin a new session with this feedback.');
+
+        // If idle or completed, start the process immediately
+        if (this.status === 'idle' || this.status === 'completed' || this.status === 'error') {
+            // Check if we can start (we need a target image and models)
+            if (this.targetImage && document.getElementById('agentic_imagen_turn_a_model')?.value && document.getElementById('agentic_imagen_turn_b_model')?.value) {
+                this.startRefinement(true);
+            } else {
+                this.addTranscriptMessage('system', 'Feedback queued. Please configure Target Image and Models then click Start.');
+            }
         } else {
             this.addTranscriptMessage('system', 'Feedback queued for next iteration.');
         }

@@ -527,17 +527,17 @@
                 <div style="margin-bottom: 8px;">
                     <input type="file" id="agentic_imagen_image_upload" accept="image/*" onchange="agenticImagen.handleImageUpload(event)" style="margin-bottom: 4px;">
                     <div style="margin: 4px 0; color: #888; font-size: 0.9em;" class="translate">or</div>
-                    <input type="text" id="agentic_imagen_image_url" class="agentic-imagen-input" placeholder="Paste image URL..." onchange="agenticImagen.handleImageUrl()">
+                    <input type="text" id="agentic_imagen_image_url" class="auto-text" placeholder="Paste image URL..." onchange="agenticImagen.handleImageUrl()">
                 </div>
                 <div id="agentic_imagen_image_preview" class="agentic-imagen-image-preview">
                     <div style="color: #888; font-style: italic;" class="translate">No image selected</div>
                 </div>
-                <button id="agentic_imagen_clear_image" class="agentic-imagen-btn-secondary translate" onclick="agenticImagen.clearImage()" style="display: none; margin-top: 4px;">Clear Image</button>
+                <button id="agentic_imagen_clear_image" class="btn btn-secondary basic-button translate" onclick="agenticImagen.clearImage()" style="display: none; margin-top: 4px;">Clear Image</button>
             </div>
 
             <div class="agentic-imagen-form-group">
                 <label for="agentic_imagen_tags" class="translate">Tags / Description (optional):</label>
-                <textarea id="agentic_imagen_tags" class="agentic-imagen-textarea" rows="2" placeholder="Enter tags or description for the target image..."></textarea>
+                <textarea id="agentic_imagen_tags" class="auto-text" rows="2" placeholder="Enter tags or description for the target image..."></textarea>
             </div>
 
             <div class="agentic-imagen-form-group">
@@ -552,21 +552,21 @@
 
             <div class="agentic-imagen-form-group">
                 <label for="agentic_imagen_turn_a_model" class="translate">Turn A Model (Prompt Engineer):</label>
-                <select id="agentic_imagen_turn_a_model" class="agentic-imagen-select">
+                <select id="agentic_imagen_turn_a_model" class="auto-dropdown">
                     <option value="">Loading models...</option>
                 </select>
             </div>
 
             <div class="agentic-imagen-form-group">
                 <label for="agentic_imagen_turn_b_model" class="translate">Turn B Model (Critic):</label>
-                <select id="agentic_imagen_turn_b_model" class="agentic-imagen-select">
+                <select id="agentic_imagen_turn_b_model" class="auto-dropdown">
                     <option value="">Loading models...</option>
                 </select>
             </div>
 
             <div class="agentic-imagen-form-group">
                 <label for="agentic_imagen_max_iterations" class="translate">Max Iterations (cap, not target):</label>
-                <input type="number" id="agentic_imagen_max_iterations" class="agentic-imagen-input" value="5" min="1" max="20">
+                <input type="number" id="agentic_imagen_max_iterations" class="auto-number" value="5" min="1" max="20">
                 <div style="color: #888; font-size: 0.85em; margin-top: 4px;" class="translate">
                     Turn B may stop earlier if satisfied. This is an upper bound.
                 </div>
@@ -581,8 +581,8 @@
             <!-- User Feedback Input -->
             <div id="agentic_imagen_user_input_section" style="margin-top: 10px; display: none;">
                 <div style="display: flex; gap: 8px;">
-                    <textarea id="agentic_imagen_user_feedback" class="agentic-imagen-textarea" rows="1" placeholder="Provide feedback or guidance for the next iteration..." style="flex: 1;"></textarea>
-                    <button id="agentic_imagen_send_feedback" class="agentic-imagen-btn-secondary translate" onclick="agenticImagen.sendUserFeedback()">Send</button>
+                    <textarea id="agentic_imagen_user_feedback" class="auto-text" rows="1" placeholder="Provide feedback or guidance for the next iteration..." style="flex: 1;"></textarea>
+                    <button id="agentic_imagen_send_feedback" class="btn btn-secondary basic-button translate" onclick="agenticImagen.sendUserFeedback()">Send</button>
                 </div>
             </div>
         </div>
