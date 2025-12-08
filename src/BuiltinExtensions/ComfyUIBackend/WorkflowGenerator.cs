@@ -1,3 +1,23 @@
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.IO;
+using SwarmUI.Core;
+using SwarmUI.Media;
+using SwarmUI.Text2Image;
+using SwarmUI.Utils;
+using Newtonsoft.Json.Linq;
+using FreneticUtilities.FreneticExtensions;
+using FreneticUtilities.FreneticToolkit;
+
+namespace SwarmUI.Builtin_ComfyUIBackend;
+
+/// <summary>Helper class for generating ComfyUI workflows from input parameters.</summary>
+public partial class WorkflowGenerator
+{
+    /// <summary>Represents a step in the workflow generation process.</summary>
+    /// <param name="Action">The action to take.</param>
+    /// <param name="Priority">The priority to apply it at.
     /// These are such from lowest to highest.
     /// "-10" is the priority of the first core pre-init,
     /// "0" is before final outputs,

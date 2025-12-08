@@ -782,32 +782,6 @@ public static class T2IAPI
         return new JObject() { ["success"] = true };
     }
 
-<<<<<<< HEAD
-    [API.APIDescription("Gets a list of images in a saved image history folder.",
-        """
-            "folders": ["Folder1", "Folder2"],
-            "files":
-            [
-                {
-                    "src": "path/to/image.jpg",
-                    "metadata": "some-metadata" // usually a JSON blob encoded as a string. Not guaranteed.
-                }
-            ]
-        """)]
-    public static async Task<JObject> ListImages(Session session,
-        [API.APIParameter("The folder path to start the listing in. Use an empty string for root.")] string path,
-        [API.APIParameter("Maximum depth (number of recursive folders) to search.")] int depth,
-        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sortBy = "Name",
-        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sortReverse = false)
-    {
-        if (!Enum.TryParse(sortBy, true, out ImageHistorySortMode sortMode))
-        {
-            return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
-        }
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
-        return GetListAPIInternal(session, path, root, ImageExtensions, f => !f.Replace('\\', '/').StartsWith("RecycleBin/"), depth, sortMode, sortReverse);
-    }
-
     [API.APIDescription("Gets a paginated list of images by recursively traversing all subfolders from a starting path.",
         """
             "files": [
@@ -837,6 +811,7 @@ public static class T2IAPI
             Logs.Error(consoleError);
             return new JObject() { ["error"] = userError };
         }
+        path = UserImageHistoryHelper.GetRealPathFor(session.User, path, root: root);
         string searchRoot = path;
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -856,7 +831,7 @@ public static class T2IAPI
         {
             // Recursive enumeration
             var files = Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories)
-                .Where(f => ImageExtensions.Contains(f.AfterLast('.').ToLowerFast()))
+                .Where(f => HistoryExtensions.Contains(f.AfterLast('.').ToLowerFast()))
                 .Where(f => !f.Replace('\\', '/').Contains("/RecycleBin/")); // Exclude RecycleBin
 
             // Sorting
@@ -882,7 +857,7 @@ public static class T2IAPI
             foreach (string file in pagedFiles)
             {
                 string relPath = Path.GetRelativePath(root, file).Replace('\\', '/');
-                string metadata = ImageMetadataTracker.GetMetadataFor(file, root, starNoFolders)?.Metadata;
+                string metadata = OutputMetadataTracker.GetMetadataFor(file, root, starNoFolders)?.Metadata;
                 fileArray.Add(new JObject()
                 {
                     ["src"] = relPath,
@@ -898,9 +873,6 @@ public static class T2IAPI
             };
         });
     }
-
-=======
->>>>>>> upstream/master
     [API.APIDescription("Toggle whether an image is starred or not.", "\"new_state\": true")]
     public static async Task<JObject> ToggleImageStarred(Session session,
         [API.APIParameter("The path to the image to star.")] string path)
@@ -1212,8 +1184,8 @@ public static class T2IAPI
                 }
             }
             
-            ImageMetadataTracker.RemoveMetadataFor(standardizedPath);
-            ImageMetadataTracker.RemoveMetadataFor(newPath); // Ensure clean state
+            OutputMetadataTracker.RemoveMetadataFor(standardizedPath);
+            OutputMetadataTracker.RemoveMetadataFor(newPath); // Ensure clean state
             
             string relativeNewPath = Path.GetRelativePath(userOutput, newPath);
             return new JObject() { ["success"] = true, ["new_path"] = relativeNewPath };
