@@ -387,9 +387,12 @@ class AgenticImagen {
             this.runningMode = job.mode || 'match';
             this.targetImage = job.targetImage;
 
-            // Validate targetImage before proceeding
-            if (!this.targetImage || (!this.targetImage.src && !this.targetImage.dataUrl)) {
-                throw new Error('Job has no valid target image. Please ensure an image is selected before adding to queue.');
+            // For non-dependent jobs, validate targetImage now
+            // For dependent jobs (with parentJobId), validation happens after hydration below
+            if (!job.parentJobId) {
+                if (!this.targetImage || (!this.targetImage.src && !this.targetImage.dataUrl)) {
+                    throw new Error('Job has no valid target image. Please ensure an image is selected before adding to queue.');
+                }
             }
         } else {
             // Validate inputs (legacy)
@@ -414,9 +417,9 @@ class AgenticImagen {
             }
         }
 
-        // Check for parent job dependency
+        // Check for parent job dependency - hydrate targetImage from completed parent
         if (job && job.parentJobId) {
-            this.addTranscriptMessage('system', 'Waiting for parent job to complete...');
+            this.addTranscriptMessage('system', 'Resolving dependent job from parent...');
 
             // Find parent
             let parent = this.queue.find(j => j.id === job.parentJobId);
@@ -447,6 +450,7 @@ class AgenticImagen {
 
             // Update the job object for UI status
             job.tags = this.tags;
+            job.targetImage = this.targetImage; // Also update job so re-runs work
             job.parentJobId = null;
 
             this.addTranscriptMessage('system', 'Parent job resolved. Starting dependent task.');
@@ -1388,10 +1392,10 @@ Guidelines:
         let label = turn === 'A' ? 'Prompt Engineer is thinking...' : 'Critic is reviewing...';
 
         thinkingDiv.innerHTML = `
-            < div class="agentic-imagen-message-header" >
+            <div class="agentic-imagen-message-header">
                 <span class="agentic-imagen-message-icon">🤔</span>
                 <span class="agentic-imagen-message-label">${label}</span>
-            </div >
+            </div>
             <div class="agentic-imagen-thinking-dots">
                 <span style="animation-delay: 0s">.</span><span style="animation-delay: 0.2s">.</span><span style="animation-delay: 0.4s">.</span>
             </div>
@@ -1441,42 +1445,42 @@ Guidelines:
 
         // Handle tool calls specially
         if (type === 'tool') {
-            let match = content.match(/^Tool: (\w+)\((.*)\)$/s);
+            let match = content.match(/^Tool: (\w+)\((.*)?\)$/s);
             if (match) {
                 let toolName = match[1];
-                let toolArgs = match[2];
+                let toolArgs = match[2] || '';
 
                 messageDiv.innerHTML = `
-            < div class="agentic-imagen-message-header" >
+                    <div class="agentic-imagen-message-header">
                         <span class="agentic-imagen-message-icon">${icon}</span>
                         <span class="agentic-imagen-message-label">${typeLabel}</span>
                         <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                    </div >
-            <details class="agentic-imagen-tool-details">
-                <summary>Used tool: <strong>${escapeHtml(toolName)}</strong></summary>
-                <div class="agentic-imagen-tool-args"><code>${escapeHtml(toolArgs)}</code></div>
-            </details>
-        `;
+                    </div>
+                    <details class="agentic-imagen-tool-details">
+                        <summary>Used tool: <strong>${escapeHtml(toolName)}</strong></summary>
+                        <div class="agentic-imagen-tool-args"><code>${escapeHtml(toolArgs)}</code></div>
+                    </details>
+                `;
             } else {
                 messageDiv.innerHTML = `
-            < div class="agentic-imagen-message-header" >
+                    <div class="agentic-imagen-message-header">
                         <span class="agentic-imagen-message-icon">${icon}</span>
                         <span class="agentic-imagen-message-label">${typeLabel}</span>
                         <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                    </div >
-            <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
-        `;
+                    </div>
+                    <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+                `;
             }
         } else {
             // Regular messages
             messageDiv.innerHTML = `
-            < div class="agentic-imagen-message-header" >
+                <div class="agentic-imagen-message-header">
                     <span class="agentic-imagen-message-icon">${icon}</span>
                     <span class="agentic-imagen-message-label">${typeLabel}</span>
                     <span class="agentic-imagen-message-time">${new Date().toLocaleTimeString()}</span>
-                </div >
-            <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
-        `;
+                </div>
+                <div class="agentic-imagen-message-content">${escapeHtml(content)}</div>
+            `;
         }
 
         transcript.appendChild(messageDiv);
