@@ -462,37 +462,51 @@ class AgenticImagen {
         this.finalConfig = null;
         this.abortController = new AbortController();
 
-        // Ensure target image is a Data URL (essential for local images)
-        if (this.targetImage && this.targetImage.src && (!this.targetImage.dataUrl || !this.targetImage.dataUrl.startsWith('data:'))) {
-            try {
-                let url = this.targetImage.src;
+        // Ensure target image has a usable URL for the API
+        // For external URLs (http/https), we can pass them directly to OpenRouter
+        // For local images (View/, Output/, file uploads), we need to convert to data URL
+        if (this.targetImage && this.targetImage.src) {
+            let url = this.targetImage.src;
 
-                // Validate src is not empty or whitespace
-                if (!url || url.trim() === '') {
-                    throw new Error('Target image source is empty.');
-                }
-
-                this.addTranscriptMessage('system', `Preprocessing target image: ${url.substring(0, 100)}...`);
-
-                if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('View/') && !url.startsWith('Output/')) {
-                    url = 'View/' + url;
-                }
-
-                console.log('[Agentic Imagen] Fetching image from URL:', url);
-                let dataUrl = await this.imagePathToDataURL(url);
-                if (dataUrl) {
-                    this.targetImage.dataUrl = dataUrl;
-                } else {
-                    throw new Error(`Failed to load target image from: ${url}`);
-                }
-            } catch (e) {
-                console.error("Error preparing image:", e);
-                if (!this.isQueueRunning) {
-                    this.showError('Failed to prepare target image: ' + e.message);
-                    return;
-                }
-                throw e;
+            // Validate src is not empty
+            if (!url || url.trim() === '') {
+                throw new Error('Target image source is empty.');
             }
+
+            const isExternalUrl = url.startsWith('http://') || url.startsWith('https://');
+            const isDataUrl = url.startsWith('data:');
+
+            if (isExternalUrl) {
+                // External URLs can be passed directly to OpenRouter - no need to fetch
+                this.addTranscriptMessage('system', `Using external image URL directly...`);
+                this.targetImage.dataUrl = url; // Just use the URL as-is
+            } else if (!isDataUrl) {
+                // Local image - need to convert to data URL
+                try {
+                    this.addTranscriptMessage('system', `Preprocessing local image: ${url.substring(0, 80)}...`);
+
+                    let fetchUrl = url;
+                    if (!url.startsWith('View/') && !url.startsWith('Output/')) {
+                        fetchUrl = 'View/' + url;
+                    }
+
+                    console.log('[Agentic Imagen] Fetching local image from:', fetchUrl);
+                    let dataUrl = await this.imagePathToDataURL(fetchUrl);
+                    if (dataUrl) {
+                        this.targetImage.dataUrl = dataUrl;
+                    } else {
+                        throw new Error(`Failed to load local image from: ${fetchUrl}`);
+                    }
+                } catch (e) {
+                    console.error("Error preparing local image:", e);
+                    if (!this.isQueueRunning) {
+                        this.showError('Failed to prepare target image: ' + e.message);
+                        return;
+                    }
+                    throw e;
+                }
+            }
+            // If already a data URL, nothing to do
         }
 
         this.updateUI(); // Update UI again after loading image
