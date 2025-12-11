@@ -409,6 +409,44 @@ class AgenticImagen {
             }
         }
 
+        // Check for parent job dependency
+        if (job && job.parentJobId) {
+            this.addTranscriptMessage('system', 'Waiting for parent job to complete...');
+
+            // Find parent
+            let parent = this.queue.find(j => j.id === job.parentJobId);
+
+            if (!parent) {
+                throw new Error("Parent job not found in queue.");
+            }
+
+            if (parent.status === 'error') {
+                throw new Error("Parent job failed, cannot proceed.");
+            }
+
+            if (parent.status !== 'completed') {
+                throw new Error(`Parent job is not complete (Status: ${parent.status}).`);
+            }
+
+            if (!parent.result || !parent.result.image) {
+                throw new Error("Parent job did not produce an image result.");
+            }
+
+            // Hydrate from parent result
+            this.targetImage = {
+                type: 'url',
+                src: parent.result.image,
+                dataUrl: parent.result.image
+            };
+            this.tags = parent.result.positive;
+
+            // Update the job object for UI status
+            job.tags = this.tags;
+            job.parentJobId = null;
+
+            this.addTranscriptMessage('system', 'Parent job resolved. Starting dependent task.');
+        }
+
         // Safety cap
         this.maxIterations = Math.min(Math.max(1, this.maxIterations), 20);
 
@@ -419,7 +457,31 @@ class AgenticImagen {
         this.finalConfig = null;
         this.abortController = new AbortController();
 
-        this.updateUI();
+        // Ensure target image is a Data URL (essential for local images)
+        if (this.targetImage && this.targetImage.src && (!this.targetImage.dataUrl || !this.targetImage.dataUrl.startsWith('data:'))) {
+            try {
+                this.addTranscriptMessage('system', 'Preprocessing target image...');
+                let url = this.targetImage.src;
+                if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('View/') && !url.startsWith('Output/')) {
+                    url = 'View/' + url;
+                }
+                let dataUrl = await this.imagePathToDataURL(url);
+                if (dataUrl) {
+                    this.targetImage.dataUrl = dataUrl;
+                } else {
+                    throw new Error('Failed to load target image data.');
+                }
+            } catch (e) {
+                console.error("Error preparing image:", e);
+                if (!this.isQueueRunning) {
+                    this.showError('Failed to prepare target image: ' + e.message);
+                    return;
+                }
+                throw e;
+            }
+        }
+
+        this.updateUI(); // Update UI again after loading image
 
         this.clearTranscript();
 
@@ -440,9 +502,16 @@ class AgenticImagen {
             await this.runIterationLoop();
         } catch (error) {
             console.error('Error in refinement loop:', error);
+
+            // Check for 412 Precondition Failed
+            let errorMsg = error.message || error.toString();
+            if (errorMsg.includes('412')) {
+                errorMsg += "\n(This usually means the request was blocked by the server. Check if your payload is too large or if the server has specific restrictions.)";
+            }
+
             // Only show error if we are not in a queue (queue handles its own errors)
             if (!this.isQueueRunning) {
-                this.showError('Refinement failed: ' + (error.message || error));
+                this.showError('Refinement failed: ' + errorMsg);
                 this.status = 'error';
                 this.updateUI();
             }
@@ -527,6 +596,16 @@ class AgenticImagen {
         this.status = 'completed';
         this.currentTurn = null;
         this.captureFinalConfig();
+        // Capture final image from last iteration if available
+        if (this.iterations.length > 0) {
+            let lastIter = this.iterations[this.iterations.length - 1];
+            if (lastIter.generatedImages && lastIter.generatedImages.length > 0) {
+                this.finalConfig.image = lastIter.generatedImages[lastIter.generatedImages.length - 1];
+            } else if (this.targetImage && this.targetImage.src) {
+                // If no new image generated (e.g. just prompt refinement), use target
+                this.finalConfig.image = this.targetImage.src;
+            }
+        }
         this.updateUI();
         this.addTranscriptMessage('system', 'Job complete! Review the results below.');
     }
@@ -1627,13 +1706,49 @@ Guidelines:
             let statusIcon = job.status === 'completed' ? '✅' : job.status === 'error' ? '❌' : job.status === 'running' ? '▶️' : '⏳';
             let modeIcon = job.mode === 'simplify' ? '📉' : job.mode === 'variation' ? '🎨' : '🎯';
 
+            let buttons = '';
+
+            // Remove button
+            buttons += `<button class="btn btn-sm btn-danger basic-button" onclick="agenticImagen.removeFromQueue(${index})" title="Remove" ${this.isQueueRunning && job.status === 'running' ? 'disabled' : ''}>&times;</button>`;
+
+            // Actions for all items (if they have a result OR are pending/running)
+            // We allow queuing a simplify/variation on a pending job -> it becomes a dependent job
+
+            // "Redo" is only for completed/error
+            if (job.status === 'completed' || job.status === 'error') {
+                buttons = `<button class="btn btn-sm btn-secondary basic-button" onclick="agenticImagen.redoQueueItem(${index})" title="Redo/Retry" style="margin-right: 5px;">↻</button>` + buttons;
+            }
+
+            // Simplify/Variation
+            // Can be done if completed with result OR if pending/running (future dependency)
+            // But strict dependency logic: parent must be able to produce an image.
+            // If parent is simplify/variation, it produces an image.
+
+            let canChain = job.status === 'pending' || job.status === 'running' || (job.status === 'completed' && job.result && job.result.image);
+
+            if (canChain) {
+                buttons = `
+                    <button class="btn btn-sm btn-info basic-button" onclick="agenticImagen.simplifyQueueItem(${index})" title="Simplify this result (or queue it)" style="margin-right: 5px;">📉</button>
+                    <button class="btn btn-sm btn-primary basic-button" onclick="agenticImagen.variationQueueItem(${index})" title="Make variations of this result (or queue it)" style="margin-right: 5px;">🎨</button>
+                    ${buttons}
+                `;
+            }
+
+            let tagsDisplay = escapeHtml(job.tags || 'Untitled');
+            if (job.parentJobId) {
+                // Find parent index for display?
+                let parentIdx = this.queue.findIndex(j => j.id === job.parentJobId);
+                let parentRef = parentIdx >= 0 ? `#${parentIdx + 1}` : 'Unknown';
+                tagsDisplay = `<span style="opacity: 0.7; font-size: 0.9em;">(Waiting for ${parentRef})</span> ` + tagsDisplay;
+            }
+
             item.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" title="${escapeHtml(job.tags)}">
-                        ${statusIcon} ${modeIcon} ${escapeHtml(job.tags || 'Untitled')}
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <span style="font-weight: bold; white-space: pre-wrap; word-break: break-word; flex-grow: 1; margin-right: 10px;" title="${escapeHtml(job.tags)}">
+                        ${statusIcon} ${modeIcon} ${tagsDisplay}
                     </span>
-                    <div>
-                        <button class="btn btn-sm btn-danger basic-button" onclick="agenticImagen.removeFromQueue(${index})" title="Remove" ${this.isQueueRunning ? 'disabled' : ''}>&times;</button>
+                    <div style="white-space: nowrap;">
+                        ${buttons}
                     </div>
                 </div>
                 <div style="font-size: 0.8em; color: #aaa;">
@@ -1642,6 +1757,88 @@ Guidelines:
             `;
             listContainer.appendChild(item);
         });
+    }
+
+    /**
+     * Redo/Retry a queue item
+     */
+    redoQueueItem(index) {
+        let job = this.queue[index];
+        if (!job) return;
+
+        // Clone the job
+        let newJob = { ...job };
+        newJob.id = Date.now();
+        newJob.status = 'pending';
+        newJob.result = null;
+        newJob.error = null;
+
+        this.queue.push(newJob);
+        this.renderQueue();
+
+        // Auto-start if not running
+        if (!this.isQueueRunning) {
+            this.processQueue();
+        }
+    }
+
+    /**
+     * Create a Simplify task from a completed job
+     */
+    simplifyQueueItem(index) {
+        this.reuseJob(index, 'simplify');
+    }
+
+    /**
+     * Create a Variation task from a completed job
+     */
+    variationQueueItem(index) {
+        this.reuseJob(index, 'variation');
+    }
+
+    /**
+     * Reuse a job result for a new task
+     */
+    reuseJob(index, newMode) {
+        let job = this.queue[index];
+        if (!job) return;
+
+        let newJob = {
+            id: Date.now(),
+            turnAModel: job.turnAModel,
+            turnBModel: job.turnBModel,
+            maxIterations: job.maxIterations,
+            mode: newMode,
+            status: 'pending',
+            result: null
+        };
+
+        // If job is already completed and has a result, use it immediately (Snapshot)
+        if (job.status === 'completed' && job.result && job.result.image) {
+            newJob.targetImage = {
+                type: 'url',
+                src: job.result.image,
+                dataUrl: job.result.image
+            };
+            newJob.tags = job.result.positive;
+
+            // Check for valid image src
+            if (!newJob.targetImage.src.startsWith('data:') && !newJob.targetImage.src.startsWith('http')) {
+                // Assume logic handles relative paths
+            }
+        }
+        else {
+            // Dependent Job
+            newJob.parentJobId = job.id;
+            newJob.tags = `(Dependent on '${job.tags || 'Untitled'}')`;
+        }
+
+        this.queue.push(newJob);
+        this.renderQueue();
+
+        if (!this.isQueueRunning) {
+            this.processQueue();
+        }
     }
 
     /**
