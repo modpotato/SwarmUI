@@ -39,6 +39,10 @@ class AgenticImagen {
         this.boundOnDrag = this.onDrag.bind(this);
         this.boundStopDrag = this.stopDrag.bind(this);
 
+        this.mode = 'match'; // 'match' | 'simplify'
+        this.queue = [];
+        this.isQueueRunning = false;
+
         this.pendingUserFeedback = null;
     }
 
@@ -371,28 +375,38 @@ class AgenticImagen {
     }
 
     /**
-     * Start the agentic refinement process
+     * Execute a refinement job (single run or queue item)
      */
-    async startRefinement(keepTranscript = false) {
-        // Validate inputs
-        if (!this.targetImage) {
-            this.showError('Please provide a target image.');
-            return;
-        }
+    async executeRefinementJob(job) {
+        // Use job properties if provided, otherwise trust current instance state (legacy/single mode)
+        if (job) {
+            this.turnAModel = job.turnAModel;
+            this.turnBModel = job.turnBModel;
+            this.tags = job.tags;
+            this.maxIterations = job.maxIterations;
+            this.runningMode = job.mode || 'match';
+            this.targetImage = job.targetImage;
+        } else {
+            // Validate inputs (legacy)
+            if (!this.targetImage) {
+                this.showError('Please provide a target image.');
+                return;
+            }
+            let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
+            let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
+            let tagsInput = document.getElementById('agentic_imagen_tags');
+            let maxIterInput = document.getElementById('agentic_imagen_max_iterations');
 
-        let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
-        let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
-        let tagsInput = document.getElementById('agentic_imagen_tags');
-        let maxIterInput = document.getElementById('agentic_imagen_max_iterations');
+            this.turnAModel = turnASelect?.value;
+            this.turnBModel = turnBSelect?.value;
+            this.tags = tagsInput?.value.trim() || '';
+            this.maxIterations = parseInt(maxIterInput?.value) || 5;
+            this.runningMode = this.mode || 'match';
 
-        this.turnAModel = turnASelect?.value;
-        this.turnBModel = turnBSelect?.value;
-        this.tags = tagsInput?.value.trim() || '';
-        this.maxIterations = parseInt(maxIterInput?.value) || 5;
-
-        if (!this.turnAModel || !this.turnBModel) {
-            this.showError('Please select models for both Turn A and Turn B.');
-            return;
+            if (!this.turnAModel || !this.turnBModel) {
+                this.showError('Please select models for both Turn A and Turn B.');
+                return;
+            }
         }
 
         // Safety cap
@@ -407,12 +421,15 @@ class AgenticImagen {
 
         this.updateUI();
 
-        if (!keepTranscript) {
-            this.clearTranscript();
-            this.addTranscriptMessage('system', 'Starting Agentic Imagen refinement...');
-        } else {
-            this.addTranscriptMessage('system', 'Starting new refinement session with feedback...');
-        }
+        this.clearTranscript();
+
+        let startMsg = this.runningMode === 'simplify'
+            ? 'Starting Prompt Simplification...'
+            : this.runningMode === 'variation'
+                ? 'Starting Variation Generation...'
+                : 'Starting Agentic Imagen refinement...';
+
+        this.addTranscriptMessage('system', startMsg);
 
         // If there was pending feedback, log it
         if (this.pendingUserFeedback) {
@@ -423,9 +440,13 @@ class AgenticImagen {
             await this.runIterationLoop();
         } catch (error) {
             console.error('Error in refinement loop:', error);
-            this.showError('Refinement failed: ' + (error.message || error));
-            this.status = 'error';
-            this.updateUI();
+            // Only show error if we are not in a queue (queue handles its own errors)
+            if (!this.isQueueRunning) {
+                this.showError('Refinement failed: ' + (error.message || error));
+                this.status = 'error';
+                this.updateUI();
+            }
+            throw error; // Re-throw for queue to catch
         }
     }
 
@@ -491,7 +512,13 @@ class AgenticImagen {
 
             // Check if Turn B decided to stop
             if (iteration.decision === 'stop') {
-                this.addTranscriptMessage('system', 'Turn B decided the refinement is complete!');
+                if (this.runningMode === 'simplify') {
+                    this.addTranscriptMessage('system', 'Turn B decided the simplification is complete (or went too far).');
+                } else if (this.runningMode === 'variation') {
+                    this.addTranscriptMessage('system', 'Turn B found an excellent variation! Stopping.');
+                } else {
+                    this.addTranscriptMessage('system', 'Turn B decided the refinement is complete!');
+                }
                 break;
             }
         }
@@ -501,7 +528,7 @@ class AgenticImagen {
         this.currentTurn = null;
         this.captureFinalConfig();
         this.updateUI();
-        this.addTranscriptMessage('system', 'Refinement complete! Review the results below.');
+        this.addTranscriptMessage('system', 'Job complete! Review the results below.');
     }
 
     /**
@@ -621,6 +648,47 @@ class AgenticImagen {
      * Get default Turn A system prompt (fallback)
      */
     getDefaultTurnAPrompt() {
+        if (this.runningMode === 'simplify') {
+            return `You are an expert prompt SIMPLIFIER. Your goal is to reduce the complexity of the prompt while maintaining the core visual concept.
+            
+Available tools:
+- set_positive_prompt(text): Set the positive prompt (SIMPLIFIED version)
+- set_negative_prompt(text): Set the negative prompt
+- set_aspect_ratio(ratio): Set the aspect ratio
+- set_param(name, value): Set parameters
+- use_lora(name, strength): Use LoRA
+- generate_image(): Test the simplified prompt
+
+Guidelines:
+1. Identify the core subject and style.
+2. Remove excessive adjectives, "filler" quality tags (like "best quality, masterpice, 8k"), and redundant terms.
+3. Simplify sentence structure.
+4. Try to remove LoRAs if they are not essential to the core concept.
+5. Call generate_image() to verify if the simplified prompt still works.`;
+        }
+
+        if (this.runningMode === 'variation') {
+            return `You are a Creative Variation Engineer. Your goal is to take the target image concept and create INTERESTING VARIATIONS of it.
+            
+Available tools:
+- set_positive_prompt(text): Set the positive prompt (VARIATION version)
+- set_negative_prompt(text): Set the negative prompt
+- set_aspect_ratio(ratio): Set the aspect ratio
+- set_param(name, value): Set parameters
+- use_lora(name, strength): Use LoRA
+- generate_image(): Test the variation
+
+Guidelines:
+1. Identify the core subject and concept of the target. KEEP the main subject.
+2. INTENTIONALLY CHANGE secondary elements like:
+   - Lighting (e.g. sunset, neon, studio)
+   - Art Styles (e.g. oil painting, sketch, 3d render, anime)
+   - Backgrounds / Settings
+   - Color Palettes
+3. Each iteration, try a DIFFERENT direction or refine the current interesting direction.
+4. Do NOT just match the target. Diverge creatively while keeping the subject recognizable.`;
+        }
+
         return `You are an expert AI image generation prompt engineer. Your role is to iteratively refine prompts and parameters to match a target image.
 
 Available tools:
@@ -646,6 +714,34 @@ Your goal is to match the target image as closely as possible through iterative 
      * Get default Turn B system prompt (fallback)
      */
     getDefaultTurnBPrompt() {
+        if (this.runningMode === 'simplify') {
+            return `You are a Visual Consistency Judge. You are comparing a simplified image (Generated) to a baseline image (Target).
+            
+CRITICAL: You must start your response with a clear decision marker:
+- "DECISION: CONTINUE" if the generated image STILL MATCHES the target concept/quality. This means Turn A can try to simplify even more.
+- "DECISION: STOP" if the generated image has LOST important details or quality. This means simplification went too far.
+
+Guidelines:
+1. Ignore minor pixel-level differences. Focus on concept, composition, and style.
+2. If the prompt was simplified but the image looks just as good, encourage MORE simplification (CONTINUE).
+3. If the image looks broken, wrong style, or missing subject, STOP.`;
+        }
+
+        if (this.runningMode === 'variation') {
+            return `You are a Creativity Judge. You are evaluating if the Generated image is a good VARIATION of the Target.
+            
+CRITICAL: You must start your response with a clear decision marker:
+- "DECISION: CONTINUE" if the variation is boring, too similar to target, or broken.
+- "DECISION: STOP" if the variation is EXCELLENT, CREATIVE, and High Quality.
+
+Guidelines:
+1. The generated image MUST keep the core subject of the target.
+2. But it MUST differ significantly in style, lighting, or composition.
+3. If it looks exactly like the target -> Fail (CONTINUE and ask for more changes).
+4. If it looks like a completely random image (lost subject) -> Fail (CONTINUE and ask to fix subject).
+5. If it is a cool reimagining -> Success (STOP).`;
+        }
+
         return `You are a strict visual critic for AI image generation. Your role is to compare generated images against a target image and decide whether the refinement process should continue or stop.
 
 CRITICAL: You must start your response with a clear decision marker:
@@ -692,6 +788,12 @@ Guidelines:
      */
     buildTurnASystemPrompt() {
         let prompt = this.turnASystemPrompt || this.getDefaultTurnAPrompt();
+        // If system prompt is user-provided (not default), we might need to inject simplify instructions? 
+        // For now, assume default for simplify mode, or trust user set it up.
+        // But if mode is complicate, users might not have a "simplify" custom prompt.
+        if (this.runningMode === 'simplify' && !this.turnASystemPrompt) {
+            prompt = this.getDefaultTurnAPrompt(); // Force default simplify prompt
+        }
 
         // Add shared knowledge if enabled
         if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
@@ -737,6 +839,9 @@ Guidelines:
      */
     buildTurnBSystemPrompt() {
         let prompt = this.turnBSystemPrompt || this.getDefaultTurnBPrompt();
+        if (this.runningMode === 'simplify' && !this.turnBSystemPrompt) {
+            prompt = this.getDefaultTurnBPrompt();
+        }
 
         // Add shared knowledge if enabled
         if (getUserSetting('sharedknowledge.enablesharedknowledge', false)) {
@@ -1295,6 +1400,9 @@ Guidelines:
         let resultsSection = document.getElementById('agentic_imagen_results_section');
         let userInputSection = document.getElementById('agentic_imagen_user_input_section');
 
+        // Always keep config section visible so users easier queue up next jobs/fix settings
+        if (configSection) configSection.style.display = 'block';
+
         if (this.status === 'idle') {
             if (statusText) statusText.textContent = 'Ready to start';
             if (progressText) progressText.textContent = '';
@@ -1302,7 +1410,6 @@ Guidelines:
             if (cancelBtn) cancelBtn.style.display = 'none';
             if (applyBtn) applyBtn.style.display = 'none';
             if (applyGenBtn) applyGenBtn.style.display = 'none';
-            if (configSection) configSection.style.display = 'block';
             if (resultsSection) resultsSection.style.display = 'none';
             if (userInputSection) userInputSection.style.display = 'block';
         } else if (this.status === 'running') {
@@ -1314,7 +1421,6 @@ Guidelines:
             if (cancelBtn) cancelBtn.style.display = 'inline-block';
             if (applyBtn) applyBtn.style.display = 'none';
             if (applyGenBtn) applyGenBtn.style.display = 'none';
-            if (configSection) configSection.style.display = 'none';
             if (userInputSection) userInputSection.style.display = 'block';
         } else if (this.status === 'completed') {
             if (statusText) statusText.textContent = 'Completed';
@@ -1323,7 +1429,6 @@ Guidelines:
             if (cancelBtn) cancelBtn.style.display = 'none';
             if (applyBtn) applyBtn.style.display = 'inline-block';
             if (applyGenBtn) applyGenBtn.style.display = 'inline-block';
-            if (configSection) configSection.style.display = 'none';
             if (resultsSection) resultsSection.style.display = 'block';
             if (userInputSection) userInputSection.style.display = 'block';
             this.displayResults();
@@ -1423,6 +1528,247 @@ Guidelines:
         } else {
             this.addTranscriptMessage('system', 'Feedback queued for next iteration.');
         }
+    }
+
+    /**
+     * Handle mode change
+     */
+    handleModeChange() {
+        let modeSelect = document.getElementById('agentic_imagen_mode');
+        if (modeSelect) {
+            this.mode = modeSelect.value;
+        }
+    }
+
+    /**
+     * Add current configuration to queue
+     */
+    addToQueue() {
+        if (!this.targetImage) {
+            this.showError('Please provide a target image.');
+            return;
+        }
+
+        let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
+        let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
+        let tagsInput = document.getElementById('agentic_imagen_tags');
+        let maxIterInput = document.getElementById('agentic_imagen_max_iterations');
+
+        let turnAModel = turnASelect?.value;
+        let turnBModel = turnBSelect?.value;
+        let tags = tagsInput?.value.trim() || '';
+        let maxIterations = parseInt(maxIterInput?.value) || 5;
+
+        if (!turnAModel || !turnBModel) {
+            this.showError('Please select models for both Turn A and Turn B.');
+            return;
+        }
+
+        let job = {
+            id: Date.now(),
+            targetImage: this.targetImage,
+            tags: tags,
+            turnAModel: turnAModel,
+            turnBModel: turnBModel,
+            maxIterations: maxIterations,
+            mode: this.mode,
+            status: 'pending', // pending, running, completed, error
+            result: null
+        };
+
+        this.queue.push(job);
+        this.renderQueue();
+
+        // Visual feedback
+        let addBtn = document.getElementById('agentic_imagen_add_queue_btn');
+        if (addBtn) {
+            let originalText = addBtn.textContent;
+            addBtn.textContent = 'Added!';
+            setTimeout(() => addBtn.textContent = originalText, 1000);
+        }
+    }
+
+    /**
+     * Clear the queue
+     */
+    clearQueue() {
+        if (this.isQueueRunning) {
+            this.showError('Cannot clear queue while it is running.');
+            return;
+        }
+        this.queue = [];
+        this.renderQueue();
+    }
+
+    /**
+     * Render the queue list
+     */
+    renderQueue() {
+        let listContainer = document.getElementById('agentic_imagen_queue_list');
+        let countLabel = document.getElementById('agentic_imagen_queue_count');
+        if (!listContainer) return;
+
+        if (countLabel) countLabel.textContent = `${this.queue.length} items`;
+
+        if (this.queue.length === 0) {
+            listContainer.innerHTML = '<div style="color: #888; font-style: italic; text-align: center; padding: 10px;" class="translate">Queue is empty</div>';
+            return;
+        }
+
+        listContainer.innerHTML = '';
+        this.queue.forEach((job, index) => {
+            let item = document.createElement('div');
+            item.className = 'agentic-imagen-queue-item';
+            item.style.borderBottom = '1px solid #444';
+            item.style.padding = '5px';
+            item.style.marginTop = '5px';
+            item.style.backgroundColor = job.status === 'running' ? 'rgba(0, 100, 0, 0.2)' : 'transparent';
+
+            let statusIcon = job.status === 'completed' ? '✅' : job.status === 'error' ? '❌' : job.status === 'running' ? '▶️' : '⏳';
+            let modeIcon = job.mode === 'simplify' ? '📉' : job.mode === 'variation' ? '🎨' : '🎯';
+
+            item.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" title="${escapeHtml(job.tags)}">
+                        ${statusIcon} ${modeIcon} ${escapeHtml(job.tags || 'Untitled')}
+                    </span>
+                    <div>
+                        <button class="btn btn-sm btn-danger basic-button" onclick="agenticImagen.removeFromQueue(${index})" title="Remove" ${this.isQueueRunning ? 'disabled' : ''}>&times;</button>
+                    </div>
+                </div>
+                <div style="font-size: 0.8em; color: #aaa;">
+                    Mode: ${job.mode} | Iters: ${job.maxIterations}
+                </div>
+            `;
+            listContainer.appendChild(item);
+        });
+    }
+
+    /**
+     * Remove item from queue
+     */
+    removeFromQueue(index) {
+        if (this.isQueueRunning) return;
+        this.queue.splice(index, 1);
+        this.renderQueue();
+    }
+
+    /**
+     * Start refinement logic (single or queue)
+     */
+    async startRefinementOrQueue() {
+        if (this.queue.length > 0) {
+            await this.processQueue();
+        } else {
+            // Run as single temporary job
+            // Validate inputs
+            if (!this.targetImage) {
+                this.showError('Please provide a target image.');
+                return;
+            }
+
+            let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
+            let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
+            let tagsInput = document.getElementById('agentic_imagen_tags');
+            let maxIterInput = document.getElementById('agentic_imagen_max_iterations');
+
+            if (!turnASelect?.value || !turnBSelect?.value) {
+                this.showError('Please select models for both Turn A and Turn B.');
+                return;
+            }
+
+            let job = {
+                id: Date.now(),
+                targetImage: this.targetImage,
+                tags: tagsInput?.value.trim() || '',
+                turnAModel: turnASelect.value,
+                turnBModel: turnBSelect.value,
+                maxIterations: parseInt(maxIterInput?.value) || 5,
+                mode: this.mode || 'match',
+                status: 'pending'
+            };
+
+            // Run single job
+            this.status = 'running';
+            this.updateUI();
+
+            try {
+                await this.executeRefinementJob(job);
+            } catch (e) {
+                console.error("Single job failed", e);
+            }
+        }
+    }
+
+    /**
+     * Process the queue
+     */
+    async processQueue() {
+        if (this.isQueueRunning) return;
+        this.isQueueRunning = true;
+        this.status = 'running';
+        this.updateUI();
+
+        for (let i = 0; i < this.queue.length; i++) {
+            let job = this.queue[i];
+            if (job.status === 'completed') continue;
+
+            job.status = 'running';
+            this.renderQueue();
+
+            this.addTranscriptMessage('system', `--> Starting Queue Item ${i + 1}/${this.queue.length}: ${job.mode} "${job.tags}"`);
+
+            try {
+                // Restore job settings to UI so the user can see what's happening
+                // and so that the logic which reads from UI works (legacy support)
+                // In a full refactor we would decouple logic from UI, but for now we sync them
+                // this.applyJobToUI(job); <-- REMOVED because logic is now decoupled via runningMode
+
+                await this.executeRefinementJob(job);
+
+                job.status = 'completed';
+                job.result = this.finalConfig;
+            } catch (error) {
+                console.error(`Queue item ${i} failed:`, error);
+                job.status = 'error';
+                job.error = error.message;
+                this.addTranscriptMessage('error', `Queue item failed: ${error.message}`);
+            }
+
+            this.renderQueue();
+
+            // Check for abort
+            if (!this.isQueueRunning) break;
+        }
+
+        this.isQueueRunning = false;
+        this.status = 'completed';
+        this.updateUI();
+        this.addTranscriptMessage('system', 'Queue processing finished.');
+    }
+
+    /**
+     * Apply job settings to UI (helper for queue execution)
+     */
+    applyJobToUI(job) {
+        // Models
+        let turnASelect = document.getElementById('agentic_imagen_turn_a_model');
+        let turnBSelect = document.getElementById('agentic_imagen_turn_b_model');
+        if (turnASelect) turnASelect.value = job.turnAModel;
+        if (turnBSelect) turnBSelect.value = job.turnBModel;
+
+        // Tags
+        let tagsInput = document.getElementById('agentic_imagen_tags');
+        if (tagsInput) tagsInput.value = job.tags;
+
+        // Image
+        this.targetImage = job.targetImage;
+        this.updateImagePreview();
+
+        // Mode
+        this.mode = job.mode;
+        let modeSelect = document.getElementById('agentic_imagen_mode');
+        if (modeSelect) modeSelect.value = job.mode;
     }
 }
 
