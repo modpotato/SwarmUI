@@ -465,16 +465,25 @@ class AgenticImagen {
         // Ensure target image is a Data URL (essential for local images)
         if (this.targetImage && this.targetImage.src && (!this.targetImage.dataUrl || !this.targetImage.dataUrl.startsWith('data:'))) {
             try {
-                this.addTranscriptMessage('system', 'Preprocessing target image...');
                 let url = this.targetImage.src;
+
+                // Validate src is not empty or whitespace
+                if (!url || url.trim() === '') {
+                    throw new Error('Target image source is empty.');
+                }
+
+                this.addTranscriptMessage('system', `Preprocessing target image: ${url.substring(0, 100)}...`);
+
                 if (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('View/') && !url.startsWith('Output/')) {
                     url = 'View/' + url;
                 }
+
+                console.log('[Agentic Imagen] Fetching image from URL:', url);
                 let dataUrl = await this.imagePathToDataURL(url);
                 if (dataUrl) {
                     this.targetImage.dataUrl = dataUrl;
                 } else {
-                    throw new Error('Failed to load target image data.');
+                    throw new Error(`Failed to load target image from: ${url}`);
                 }
             } catch (e) {
                 console.error("Error preparing image:", e);
