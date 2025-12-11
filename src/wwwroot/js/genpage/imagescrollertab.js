@@ -4,26 +4,25 @@ class ImageScrollerTab {
         this.backButton = document.getElementById('scroller_back_button');
         this.loadingIndicator = document.getElementById('scroller_loading_indicator');
         this.topTabBar = document.getElementById('toptablist');
-        
+
         this.currentImages = [];
         this.isLoading = false;
         this.lastScrollY = 0;
         this.scrollTimeout = null;
-        this.doubleTapTimeout = null;
-        this.lastTapTime = 0;
-        this.lastTapImage = null;
-        
+        this.isScrolling = false;
+        this.scrollAlignTimeout = null;
+
         // Swipe gesture state
         this.swipeStartX = null;
         this.swipeStartY = null;
         this.swipeCurrentX = 0;
         this.swipingItem = null;
         this.swipeThreshold = Math.max(100, window.innerWidth * 0.3);
-        
+
         this.initialized = false;
         this.currentPath = 'raw';
         this.hasMore = true;
-        
+
         this.observer = new IntersectionObserver(this.handleIntersection.bind(this), {
             root: this.container,
             rootMargin: '200px',
@@ -34,10 +33,16 @@ class ImageScrollerTab {
     initialize() {
         if (this.initialized) return;
         this.initialized = true;
-        
+
         this.container.addEventListener('scroll', this.handleScroll.bind(this));
+        // Add touchstart listener to detect user interaction and cancel auto-scroll
+        this.container.addEventListener('touchstart', () => {
+            this.isScrolling = true;
+            if (this.scrollAlignTimeout) clearTimeout(this.scrollAlignTimeout);
+        }, { passive: true });
+
         this.backButton.addEventListener('click', this.goBack.bind(this));
-        
+
         this.loadImages();
     }
 
@@ -46,23 +51,26 @@ class ImageScrollerTab {
         if (!lastTab || lastTab === '#ImageScroller') {
             lastTab = '#Text2Image'; // Default to Generate tab
         }
-        
+
         let tabButton = document.querySelector(`a[href="${lastTab}"]`);
         if (tabButton) {
             tabButton.click();
         }
-        
+
         // Reset UI state
         this.topTabBar.classList.remove('scroller-topbar-hidden');
         this.backButton.classList.add('scroller-back-button-hidden');
     }
 
     handleScroll() {
+        this.isScrolling = true;
         if (this.scrollTimeout) clearTimeout(this.scrollTimeout);
-        
+        if (this.scrollAlignTimeout) clearTimeout(this.scrollAlignTimeout);
+
+        const currentScrollY = this.container.scrollTop;
+
+        // Debounce for UI updates (UI bars)
         this.scrollTimeout = setTimeout(() => {
-            const currentScrollY = this.container.scrollTop;
-            
             // Show/hide top bar based on scroll direction
             if (currentScrollY > this.lastScrollY && currentScrollY > 50) {
                 // Scrolling down
@@ -75,14 +83,41 @@ class ImageScrollerTab {
                     this.backButton.classList.add('scroller-back-button-hidden');
                 }
             }
-            
+
             this.lastScrollY = currentScrollY;
-            
+
             // Infinite scroll
             if (this.container.scrollHeight - this.container.scrollTop - this.container.clientHeight < 500) {
                 this.loadImages();
             }
         }, 50);
+
+        // Debounce for Magnetic Alignment (Instagram-y feel)
+        this.scrollAlignTimeout = setTimeout(() => {
+            this.isScrolling = false;
+            this.alignToNearestImage();
+        }, 150); // Wait for scroll to settle
+    }
+
+    alignToNearestImage() {
+        if (this.isScrolling) return;
+
+        const containerHeight = this.container.clientHeight;
+        const scrollTop = this.container.scrollTop;
+
+        // Find the image closest to being centered
+        // Since all items are 100vh (containerHeight), simple math works
+        const index = Math.round(scrollTop / containerHeight);
+        const targetScrollTop = index * containerHeight;
+
+        // If we are close enough, don't jitter
+        if (Math.abs(scrollTop - targetScrollTop) < 10) return;
+
+        // Smooth scroll to target
+        this.container.scrollTo({
+            top: targetScrollTop,
+            behavior: 'smooth'
+        });
     }
 
     handleIntersection(entries) {
@@ -99,10 +134,10 @@ class ImageScrollerTab {
 
     loadImages() {
         if (this.isLoading || !this.hasMore) return;
-        
+
         this.isLoading = true;
         this.loadingIndicator.style.display = 'flex';
-        
+
         genericRequest('ListImagesRecursive', {
             'path': this.currentPath,
             'offset': this.currentImages.length,
@@ -140,12 +175,12 @@ class ImageScrollerTab {
             }
 
             this.hasMore = data.hasMore;
-            
+
             data.files.forEach(file => {
                 this.renderImage(file);
                 this.currentImages.push(file);
             });
-            
+
             this.isLoading = false;
             this.loadingIndicator.style.display = 'none';
         });
@@ -154,13 +189,13 @@ class ImageScrollerTab {
     renderImage(file) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'scroller-image-item';
-        
+
         const src = getImageOutPrefix() + '/' + file.src;
         const name = file.src;
-        
+
         const isVideo = src.endsWith('.mp4') || src.endsWith('.webm');
         const element = isVideo ? document.createElement('video') : document.createElement('img');
-        
+
         // Use lazy loading with IntersectionObserver
         element.dataset.src = src;
         if (isVideo) {
@@ -168,22 +203,22 @@ class ImageScrollerTab {
             element.autoplay = true;
             element.muted = true;
         }
-        
+
         itemDiv.appendChild(element);
         this.setupSwipeHandlers(itemDiv, name);
-        
+
         // Metadata Overlay
         const metadataOverlay = document.createElement('div');
         metadataOverlay.className = 'scroller-metadata-overlay';
-        
+
         // Parse metadata
         let metadata = interpretMetadata(file.metadata);
-        
+
         if (metadata && metadata.sui_image_params) {
             const params = metadata.sui_image_params;
             const prompt = params.prompt || '';
             const model = params.model || '';
-            
+
             metadataOverlay.innerHTML = `
                 <div class="scroller-metadata-text">
                     <strong>${escapeHtml(model)}</strong><br>
@@ -191,13 +226,13 @@ class ImageScrollerTab {
                 </div>
             `;
         }
-        
+
         itemDiv.appendChild(metadataOverlay);
-        
+
         // Action Buttons
         const actionsOverlay = document.createElement('div');
         actionsOverlay.className = 'scroller-actions-overlay';
-        
+
         // Star Button
         let starBtn = null;
         if (permissions.hasPermission('user_star_images')) {
@@ -208,12 +243,13 @@ class ImageScrollerTab {
             }
             starBtn.innerHTML = '<i class="bi bi-heart-fill"></i>';
             starBtn.onclick = (e) => {
+                e.preventDefault(); // Prevent double-triggering from tap handler checks
                 e.stopPropagation();
                 this.toggleStar(name, starBtn);
             };
             actionsOverlay.appendChild(starBtn);
         }
-        
+
         // Recycle Bin Button
         if (permissions.hasPermission('user_delete_image')) {
             const recycleBtn = document.createElement('div');
@@ -221,35 +257,47 @@ class ImageScrollerTab {
             recycleBtn.title = translate('Move to Recycle Bin');
             recycleBtn.innerHTML = '<i class="bi bi-trash"></i>';
             recycleBtn.onclick = (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 this.moveToRecycleBin(name, itemDiv);
             };
             actionsOverlay.appendChild(recycleBtn);
         }
-        
+
         itemDiv.appendChild(actionsOverlay);
-        
+
         // Tap handler
         let lastTapTime = 0;
-        
+
         const handleTap = (e) => {
             if (this.swipingItem !== null) return;
-            
+
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
-            
-            if (tapLength < 400 && tapLength > 0) {
+
+            // Allow up to 500ms for double tap, more generous for accessibility
+            if (tapLength < 500 && tapLength > 50) { // > 50 to prevent bounce
                 // Double tap
                 if (starBtn) {
+                    // Check if star request is already flying? handled by backend usually, but for UI feedback:
                     this.toggleStar(name, starBtn);
                     this.showHeartAnimation(itemDiv);
                 }
+
                 if (e.cancelable) e.preventDefault();
+                // Reset to avoid triple-tap triggering another single tap logic
+                lastTapTime = 0;
             } else {
                 // Single tap (delayed to wait for potential double tap)
+                // If it was a double-tap, lastTapTime was reset, so this timeout check logic is a bit tricky
+                // Better approach: store the time we are checking against
+                const tapTime = currentTime;
+
                 setTimeout(() => {
                     const newTime = new Date().getTime();
-                    if (newTime - lastTapTime >= 400) {
+                    // If no new tap happened (lastTapTime is still the same as when we set it)
+                    // OR if it's been long enough
+                    if (lastTapTime === tapTime) {
                         // Toggle overlays
                         if (metadataOverlay.style.opacity === '0') {
                             metadataOverlay.style.opacity = '1';
@@ -259,10 +307,10 @@ class ImageScrollerTab {
                             actionsOverlay.style.opacity = '0';
                         }
                     }
-                }, 400);
+                }, 500);
+
+                lastTapTime = currentTime;
             }
-            
-            lastTapTime = currentTime;
         };
 
         itemDiv.addEventListener('click', handleTap);
@@ -273,9 +321,9 @@ class ImageScrollerTab {
                 if (e.cancelable) e.preventDefault();
             }
         });
-        
+
         this.setupSwipeHandlers(itemDiv, name);
-        
+
         this.container.appendChild(itemDiv);
         this.observer.observe(itemDiv);
     }
@@ -307,14 +355,14 @@ class ImageScrollerTab {
             // Only handle left swipe
             if (Math.abs(deltaX) > deltaY && deltaX < 0) {
                 if (e.cancelable) e.preventDefault();
-                
+
                 if (!itemDiv.classList.contains('swiping')) {
                     itemDiv.classList.add('swiping');
                 }
 
                 this.swipeCurrentX = deltaX;
                 itemDiv.style.transform = `translateX(${deltaX}px)`;
-                
+
                 const progress = Math.min(1, Math.abs(deltaX) / this.swipeThreshold);
                 itemDiv.style.setProperty('--swipe-progress', progress);
             }
@@ -380,7 +428,7 @@ class ImageScrollerTab {
         heart.className = 'scroller-heart-animation';
         heart.innerHTML = '<i class="bi bi-heart-fill"></i>';
         container.appendChild(heart);
-        
+
         setTimeout(() => {
             heart.remove();
         }, 1000);

@@ -386,6 +386,11 @@ class AgenticImagen {
             this.maxIterations = job.maxIterations;
             this.runningMode = job.mode || 'match';
             this.targetImage = job.targetImage;
+
+            // Validate targetImage before proceeding
+            if (!this.targetImage || (!this.targetImage.src && !this.targetImage.dataUrl)) {
+                throw new Error('Job has no valid target image. Please ensure an image is selected before adding to queue.');
+            }
         } else {
             // Validate inputs (legacy)
             if (!this.targetImage) {

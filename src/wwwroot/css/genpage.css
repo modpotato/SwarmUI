@@ -2043,7 +2043,7 @@ body {
     height: 100%;
     width: 100%;
     overflow-y: auto;
-    scroll-snap-type: y mandatory;
+    /* scroll-snap-type: y mandatory; <--- Removed for custom JS logic */
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y pinch-zoom;
     scrollbar-width: none; /* Firefox */
@@ -2056,7 +2056,7 @@ body {
 .scroller-image-item {
     height: 100vh;
     width: 100%;
-    scroll-snap-align: start;
+    /* scroll-snap-align: start; <--- Removed for custom JS logic */
     position: relative;
     display: flex;
     align-items: center;
