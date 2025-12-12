@@ -542,6 +542,15 @@
             </div>
 
             <div class="agentic-imagen-form-group">
+                <label for="agentic_imagen_mode" class="translate">Mode:</label>
+                <select id="agentic_imagen_mode" class="auto-dropdown" onchange="agenticImagen.handleModeChange()">
+                    <option value="match" selected>Match Target (Default)</option>
+                    <option value="simplify">Simplify Prompt</option>
+                    <option value="variation">Create Variations</option>
+                </select>
+            </div>
+
+            <div class="agentic-imagen-form-group">
                 <label class="translate" style="display: flex; align-items: center; cursor: pointer;">
                     <input type="checkbox" id="agentic_imagen_enable_loras" style="margin-right: 8px;">
                     Enable LoRA Knowledge
@@ -600,14 +609,7 @@
             <span id="agentic_imagen_progress_text" style="margin-left: 10px; color: #888;"></span>
         </div>
         <div class="agentic-imagen-footer-buttons">
-            <div class="agentic-imagen-form-group">
-                <label for="agentic_imagen_mode" class="translate">Mode:</label>
-                <select id="agentic_imagen_mode" class="auto-dropdown" onchange="agenticImagen.handleModeChange()">
-                    <option value="match" selected>Match Target (Default)</option>
-                    <option value="simplify">Simplify Prompt</option>
-                    <option value="variation">Create Variations</option>
-                </select>
-            </div>
+
 
             <div class="agentic-imagen-form-group" id="agentic_imagen_queue_section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">

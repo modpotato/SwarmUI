@@ -1366,12 +1366,16 @@ Guidelines:
      * Cancel running refinement
      */
     cancel() {
-        if (this.status === 'running' && this.abortController) {
-            this.abortController.abort();
+        if (this.status === 'running') {
+            if (this.abortController) {
+                this.abortController.abort();
+            }
             this.status = 'idle';
             this.currentTurn = null;
+            this.isQueueRunning = false; // Stop the queue!
             this.addTranscriptMessage('system', 'Refinement cancelled by user.');
             this.updateUI();
+            this.renderQueue(); // Update queue UI to show cancelled state
         }
     }
 
@@ -1714,6 +1718,9 @@ Guidelines:
     /**
      * Render the queue list
      */
+    /**
+     * Render the queue list
+     */
     renderQueue() {
         let listContainer = document.getElementById('agentic_imagen_queue_list');
         let countLabel = document.getElementById('agentic_imagen_queue_count');
@@ -1727,13 +1734,34 @@ Guidelines:
         }
 
         listContainer.innerHTML = '';
+
+        let activeItemElement = null;
+
         this.queue.forEach((job, index) => {
             let item = document.createElement('div');
             item.className = 'agentic-imagen-queue-item';
+
+            // Base style
             item.style.borderBottom = '1px solid #444';
             item.style.padding = '5px';
             item.style.marginTop = '5px';
-            item.style.backgroundColor = job.status === 'running' ? 'rgba(0, 100, 0, 0.2)' : 'transparent';
+            item.style.display = 'flex';
+            item.style.alignItems = 'center';
+            item.style.gap = '8px';
+
+            // Dynamic style based on status
+            if (job.status === 'running') {
+                item.style.backgroundColor = 'rgba(0, 100, 0, 0.4)';
+                item.style.borderLeft = '4px solid #4CAF50';
+                activeItemElement = item;
+            } else if (job.status === 'completed') {
+                item.style.opacity = '0.8';
+            } else if (job.status === 'error') {
+                item.style.borderLeft = '4px solid #F44336';
+            } else {
+                item.style.backgroundColor = 'transparent';
+                item.style.borderLeft = '4px solid transparent';
+            }
 
             let statusIcon = job.status === 'completed' ? '✅' : job.status === 'error' ? '❌' : job.status === 'running' ? '▶️' : '⏳';
             let modeIcon = job.mode === 'simplify' ? '📉' : job.mode === 'variation' ? '🎨' : '🎯';
@@ -1741,7 +1769,9 @@ Guidelines:
             let buttons = '';
 
             // Remove button
-            buttons += `<button class="btn btn-sm btn-danger basic-button" onclick="agenticImagen.removeFromQueue(${index})" title="Remove" ${this.isQueueRunning && job.status === 'running' ? 'disabled' : ''}>&times;</button>`;
+            if (!(this.isQueueRunning && job.status === 'running')) {
+                buttons += `<button class="btn btn-sm btn-danger basic-button" onclick="agenticImagen.removeFromQueue(${index})" title="Remove">🗑️</button>`;
+            }
 
             // Actions for all items (if they have a result OR are pending/running)
             // We allow queuing a simplify/variation on a pending job -> it becomes a dependent job
@@ -1751,11 +1781,7 @@ Guidelines:
                 buttons = `<button class="btn btn-sm btn-secondary basic-button" onclick="agenticImagen.redoQueueItem(${index})" title="Redo/Retry" style="margin-right: 5px;">↻</button>` + buttons;
             }
 
-            // Simplify/Variation
-            // Can be done if completed with result OR if pending/running (future dependency)
-            // But strict dependency logic: parent must be able to produce an image.
-            // If parent is simplify/variation, it produces an image.
-
+            // "Chain" (Simplify/Variation)
             let canChain = job.status === 'pending' || job.status === 'running' || (job.status === 'completed' && job.result && job.result.image);
 
             if (canChain) {
@@ -1768,27 +1794,43 @@ Guidelines:
 
             let tagsDisplay = escapeHtml(job.tags || 'Untitled');
             if (job.parentJobId) {
-                // Find parent index for display?
                 let parentIdx = this.queue.findIndex(j => j.id === job.parentJobId);
                 let parentRef = parentIdx >= 0 ? `#${parentIdx + 1}` : 'Unknown';
-                tagsDisplay = `<span style="opacity: 0.7; font-size: 0.9em;">(Waiting for ${parentRef})</span> ` + tagsDisplay;
+                tagsDisplay = `<span style="opacity: 0.7; font-size: 0.9em;">(Wait ${parentRef})</span> ` + tagsDisplay;
+            }
+
+            // Thumbnail
+            let thumbnailHtml = '';
+            if (job.targetImage && (job.targetImage.dataUrl || job.targetImage.src)) {
+                let src = job.targetImage.dataUrl || job.targetImage.src;
+                thumbnailHtml = `<div style="width: 40px; height: 40px; min-width: 40px; background-color: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 3px;">
+                    <img src="${src}" style="max-width: 100%; max-height: 100%; object-fit: cover;" onerror="this.style.display='none'">
+                </div>`;
+            } else {
+                thumbnailHtml = `<div style="width: 40px; height: 40px; min-width: 40px; background-color: #333; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 20px;">❓</div>`;
             }
 
             item.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <span style="font-weight: bold; white-space: pre-wrap; word-break: break-word; flex-grow: 1; margin-right: 10px;" title="${escapeHtml(job.tags)}">
+                ${thumbnailHtml}
+                <div style="flex-grow: 1; overflow: hidden;">
+                    <div style="font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(job.tags)}">
                         ${statusIcon} ${modeIcon} ${tagsDisplay}
-                    </span>
-                    <div style="white-space: nowrap;">
-                        ${buttons}
+                    </div>
+                    <div style="font-size: 0.75em; color: #aaa;">
+                        ${job.mode} | Iters: ${job.maxIterations}
                     </div>
                 </div>
-                <div style="font-size: 0.8em; color: #aaa;">
-                    Mode: ${job.mode} | Iters: ${job.maxIterations}
+                <div style="white-space: nowrap;">
+                    ${buttons}
                 </div>
             `;
             listContainer.appendChild(item);
         });
+
+        // Auto-scroll to active item if running
+        if (activeItemElement && this.isQueueRunning) {
+            activeItemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     }
 
     /**
@@ -1868,9 +1910,13 @@ Guidelines:
         this.queue.push(newJob);
         this.renderQueue();
 
-        if (!this.isQueueRunning) {
-            this.processQueue();
-        }
+        // User requested to NOT auto-start these, so they can queue up multiple or manage them first.
+        // if (!this.isQueueRunning) {
+        //    this.processQueue();
+        // }
+
+        // Provide visual confirmation (optional but nice since we aren't starting)
+        this.addTranscriptMessage('system', `Added '${newMode}' task to queue.`);
     }
 
     /**
@@ -1935,29 +1981,43 @@ Guidelines:
     async processQueue() {
         if (this.isQueueRunning) return;
         this.isQueueRunning = true;
-        this.status = 'running';
+        this.status = 'idle'; // Reset overall status first
         this.updateUI();
 
         for (let i = 0; i < this.queue.length; i++) {
-            let job = this.queue[i];
-            if (job.status === 'completed') continue;
+            // Re-check running state at start of each iteration
+            if (!this.isQueueRunning) break;
 
+            let job = this.queue[i];
+            if (job.status === 'completed' || job.status === 'error') continue;
+
+            // Set global status to running for this job
+            this.status = 'running';
             job.status = 'running';
             this.renderQueue();
 
             this.addTranscriptMessage('system', `--> Starting Queue Item ${i + 1}/${this.queue.length}: ${job.mode} "${job.tags}"`);
 
             try {
-                // Restore job settings to UI so the user can see what's happening
-                // and so that the logic which reads from UI works (legacy support)
-                // In a full refactor we would decouple logic from UI, but for now we sync them
-                // this.applyJobToUI(job); <-- REMOVED because logic is now decoupled via runningMode
+                // We do NOT call applyJobToUI anymore to avoid flickering the config area
+                // The job runs based on its internal properties
 
                 await this.executeRefinementJob(job);
 
+                // If we get here without error, it succeeded
                 job.status = 'completed';
                 job.result = this.finalConfig;
+
             } catch (error) {
+                // Check if it was an abort
+                if (this.abortController && this.abortController.signal.aborted) {
+                    this.addTranscriptMessage('system', 'Job aborted.');
+                    job.status = 'pending'; // Reset to pending if aborted so can be retried? Or 'error'?
+                    // If user clicked cancel, we want to stop EVERYTHING.
+                    this.isQueueRunning = false;
+                    break;
+                }
+
                 console.error(`Queue item ${i} failed:`, error);
                 job.status = 'error';
                 job.error = error.message;
@@ -1965,13 +2025,15 @@ Guidelines:
             }
 
             this.renderQueue();
-
-            // Check for abort
-            if (!this.isQueueRunning) break;
         }
 
         this.isQueueRunning = false;
-        this.status = 'completed';
+
+        // If we finished (didn't abort), set status to completed
+        if (this.status === 'running') {
+            this.status = 'completed';
+        }
+
         this.updateUI();
         this.addTranscriptMessage('system', 'Queue processing finished.');
     }
