@@ -44,6 +44,17 @@ class AgenticImagen {
         this.isQueueRunning = false;
 
         this.pendingUserFeedback = null;
+
+        // Load queue from localStorage
+        try {
+            let savedQueue = localStorage.getItem('agentic_imagen_queue');
+            if (savedQueue) {
+                this.queue = JSON.parse(savedQueue);
+            }
+        } catch (e) {
+            console.error('Failed to load queue from localStorage:', e);
+            this.queue = [];
+        }
     }
 
     /**
@@ -73,19 +84,48 @@ class AgenticImagen {
             this.turnBSystemPrompt = this.getDefaultTurnBPrompt();
         }
 
-        // Load available models from OpenRouter
+        // Load available models from OpenRouter (with caching)
         try {
-            let data = await new Promise((resolve, reject) => {
-                genericRequest('GetOpenRouterModels', {}, resolve, 0, reject);
-            });
-
-            if (data.error) {
-                console.error('OpenRouter API error:', data.error);
-                return;
+            let cachedModels = null;
+            try {
+                cachedModels = localStorage.getItem('agentic_imagen_models');
+                if (cachedModels) {
+                    this.models = JSON.parse(cachedModels);
+                    this.populateModelDropdowns();
+                    console.log('Agentic Imagen: Loaded models from cache');
+                }
+            } catch (e) {
+                console.error('Failed to load models from cache:', e);
             }
 
-            this.models = data.models || [];
-            this.populateModelDropdowns();
+            // Always fetch fresh models if cache is empty or > 1 hour old
+            let shouldFetch = !cachedModels;
+            if (cachedModels) {
+                let cacheTime = localStorage.getItem('agentic_imagen_models_time');
+                if (cacheTime) {
+                    let age = Date.now() - parseInt(cacheTime);
+                    shouldFetch = age > 3600000; // 1 hour
+                }
+            }
+
+            if (shouldFetch) {
+                let data = await new Promise((resolve, reject) => {
+                    genericRequest('GetOpenRouterModels', {}, resolve, 0, reject);
+                });
+
+                if (data.error) {
+                    console.error('OpenRouter API error:', data.error);
+                    return;
+                }
+
+                this.models = data.models || [];
+                this.populateModelDropdowns();
+
+                // Cache the models
+                localStorage.setItem('agentic_imagen_models', JSON.stringify(this.models));
+                localStorage.setItem('agentic_imagen_models_time', Date.now().toString());
+                console.log('Agentic Imagen: Fetched and cached models');
+            }
         } catch (error) {
             console.error('Error loading models for Agentic Imagen:', error);
         }
@@ -259,8 +299,16 @@ class AgenticImagen {
         let deltaX = e.clientX - this.dragState.startX;
         let deltaY = e.clientY - this.dragState.startY;
 
-        this.position.x = this.dragState.initialX + deltaX;
-        this.position.y = this.dragState.initialY + deltaY;
+        // Constrain to viewport bounds
+        let newX = this.dragState.initialX + deltaX;
+        let newY = this.dragState.initialY + deltaY;
+
+        // Keep widget visible
+        let maxWidth = window.innerWidth - this.size.width;
+        let maxHeight = window.innerHeight - 50; // 50px = minimized height
+
+        this.position.x = Math.max(0, Math.min(maxWidth, newX));
+        this.position.y = Math.max(0, Math.min(maxHeight, newY));
 
         this.updatePosition();
     }
@@ -1488,7 +1536,12 @@ Guidelines:
         }
 
         transcript.appendChild(messageDiv);
-        transcript.scrollTop = transcript.scrollHeight;
+
+        // Only auto-scroll if user is at bottom (allows reading while running)
+        let isAtBottom = (transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight) < 50;
+        if (isAtBottom || type === 'system') {
+            transcript.scrollTop = transcript.scrollHeight;
+        }
     }
 
     /**
@@ -1581,11 +1634,15 @@ Guidelines:
     /**
      * Show error message
      */
-    showError(message) {
+    showError(message, options = {}) {
         let errorDiv = document.getElementById('agentic_imagen_error');
-        if (errorDiv) {
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
+        if (!errorDiv) return;
+
+        errorDiv.innerHTML = message;
+        errorDiv.style.display = 'block';
+
+        // Auto-hide unless keepVisible is true
+        if (!options.keepVisible) {
             setTimeout(() => {
                 errorDiv.style.display = 'none';
             }, AgenticImagen.ERROR_DISPLAY_TIMEOUT_MS);
@@ -1593,9 +1650,19 @@ Guidelines:
     }
 
     /**
-     * Reset the Agentic Imagen state
+     * Hide error message
      */
-    reset() {
+    hideError() {
+        let errorDiv = document.getElementById('agentic_imagen_error');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+    }
+
+    /**
+     * Reset Agentic Imagen state
+     */
+    reset(full = false) {
         if (this.status === 'running') {
             this.cancel();
         }
@@ -1605,6 +1672,29 @@ Guidelines:
         this.currentIteration = 0;
         this.finalConfig = null;
         this.currentTurn = null;
+
+        // Full reset clears everything
+        if (full) {
+            this.queue = [];
+            this.isQueueRunning = false;
+            this.targetImage = null;
+            this.tags = '';
+            this.turnAModel = null;
+            this.turnBModel = null;
+            this.saveQueue();
+
+            // Clear image inputs
+            let fileInput = document.getElementById('agentic_imagen_image_upload');
+            let urlInput = document.getElementById('agentic_imagen_image_url');
+            let tagsInput = document.getElementById('agentic_imagen_tags');
+            if (fileInput) fileInput.value = '';
+            if (urlInput) urlInput.value = '';
+            if (tagsInput) tagsInput.value = '';
+
+            this.updateImagePreview();
+            this.renderQueue();
+        }
+
         // Do not clear pendingUserFeedback here, as user might have just typed it
 
         // Clear UI
@@ -1616,6 +1706,7 @@ Guidelines:
         // Do not clear feedback input here
 
         this.updateUI();
+        this.hideError();
         this.addTranscriptMessage('system', 'Session reset. Ready to start new refinement.');
     }
 
@@ -1692,6 +1783,7 @@ Guidelines:
         };
 
         this.queue.push(job);
+        this.saveQueue();
         this.renderQueue();
 
         // Visual feedback
@@ -1704,15 +1796,29 @@ Guidelines:
     }
 
     /**
+     * Save queue to localStorage
+     */
+    saveQueue() {
+        try {
+            localStorage.setItem('agentic_imagen_queue', JSON.stringify(this.queue));
+        } catch (e) {
+            console.error('Failed to save queue to localStorage:', e);
+        }
+    }
+
+    /**
      * Clear the queue
      */
-    clearQueue() {
-        if (this.isQueueRunning) {
-            this.showError('Cannot clear queue while it is running.');
+    clearQueue(force = false) {
+        if (this.isQueueRunning && !force) {
+            this.showError('Cannot clear queue while it is running. <br><button onclick="agenticImagen.clearQueue(true)" class="btn btn-danger btn-sm mt-2">Force Clear</button>', { keepVisible: true });
             return;
         }
         this.queue = [];
+        this.isQueueRunning = false; // Always reset running state
+        this.saveQueue();
         this.renderQueue();
+        this.hideError(); // Clear any error messages
     }
 
     /**
@@ -1971,6 +2077,10 @@ Guidelines:
                 await this.executeRefinementJob(job);
             } catch (e) {
                 console.error("Single job failed", e);
+                // Always reset state on error to prevent stuck buttons
+                this.status = 'idle';
+                this.isQueueRunning = false;
+                this.updateUI();
             }
         }
     }
@@ -2024,6 +2134,8 @@ Guidelines:
                 this.addTranscriptMessage('error', `Queue item failed: ${error.message}`);
             }
 
+            // Save queue state after each job
+            this.saveQueue();
             this.renderQueue();
         }
 
