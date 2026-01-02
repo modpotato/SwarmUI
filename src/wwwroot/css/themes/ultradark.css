@@ -20,4 +20,16 @@
     --button-background: #1a1a1a;
     --range-track-color: #000000;
     --range-thumb-color: #1a1a1a;
+
+    /* Agentic Imagen Widget Variables */
+    --main-background: #000000;
+    --main-background-light: #0a0a0a;
+    --card-background: rgba(20, 20, 20, 0.6);
+    --primary-color: #6844c7;
+    --primary-color-hover: #7a55d9;
+    --button-border: #1a1a1a;
+    --button-background-hover: #2a2a2a;
+    --text-color: #b8b8b8;
+    --text-muted: #888888;
+    --danger-button-background: #c0392b;
 }
