@@ -137,6 +137,7 @@ public class ComfyUser
         input.Set(ComfyUIBackendExtension.FakeRawInputType, prompt.ToString(Newtonsoft.Json.Formatting.None));
         input.Set(T2IParamTypes.NoLoadModels, true);
         input.Set(T2IParamTypes.DoNotSave, true);
+        input.Set(T2IParamTypes.NoInternalSpecialHandling, true);
         Guid promptId = Guid.NewGuid();
         JObject response = new()
         {
@@ -152,7 +153,8 @@ public class ComfyUser
                 return;
             }
             // TODO: This is hacky message type detection. Maybe backend should actually pay attention to this properly?
-            if (Encoding.ASCII.GetString(data, 0, 8) == "{\"type\":")
+            string firstChunk = Encoding.ASCII.GetString(data, 0, 8);
+            if (firstChunk == "{\"type\":" || firstChunk == "{ \"type\"")
             {
                 JObject jmessage = StringConversionHelper.UTF8Encoding.GetString(data).ParseToJson();
                 string jtype = $"{jmessage["type"]}";

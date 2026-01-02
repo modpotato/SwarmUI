@@ -947,7 +947,7 @@ body {
     color: color-mix(in srgb, var(--text) 50%, var(--background));
 }
 .alt_prompt_textboxes {
-    margin-left: 1rem;
+    margin-left: 2rem;
     display: inline-block;
     flex-grow: 10;
 }
@@ -971,9 +971,14 @@ body {
 }
 .alt-text-add-button {
     position: relative;
-    top: 0;
-    left: -8px;
-    padding: 0px 4px !important;
+    top: 2px;
+    width: 29px;
+    height: 29px;
+    left: -5px;
+    font-size: 32px;
+    line-height: 0.6;
+    padding-top: 0px;
+    padding-left: 2px !important;
     border-radius: 1rem !important;
 }
 .small-window .alt-text-add-button {
@@ -1322,7 +1327,7 @@ body {
 }
 .server_logs_container {
     display: block;
-    width: 80vw;
+    width: 95vw;
     height: calc(90vh - 10rem);
     border: 1px solid var(--light-border);
     border-radius: 1rem;
@@ -1424,6 +1429,12 @@ body {
 .welcome-message-wrapper {
     min-height: 8em;
     width: fit-content;
+}
+.password-change-warn {
+    font-weight: bold;
+    color: var(--red);
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 .button-starred-image {
     background-color: var(--star);

@@ -20,14 +20,14 @@ public class T2IModelClassSorter
     /// <summary>Register a new model class to the sorter.</summary>
     public static T2IModelClass Register(T2IModelClass clazz)
     {
-        ModelClasses.Add(clazz.ID, clazz);
+        ModelClasses.Add(clazz.ID.ToLowerFast(), clazz);
         return clazz;
     }
 
     /// <summary>Register a new model compat class to the sorter.</summary>
     public static T2IModelCompatClass RegisterCompat(T2IModelCompatClass clazz)
     {
-        CompatClasses.Add(clazz.ID, clazz);
+        CompatClasses.Add(clazz.ID.ToLowerFast(), clazz);
         return clazz;
     }
 
@@ -146,7 +146,7 @@ public class T2IModelClassSorter
         bool isCosmosPredict2_2B(JObject h) => h.ContainsKey("norm_out.linear_1.weight") && h.ContainsKey("time_embed.t_embedder.linear_1.weight");
         bool isCosmosPredict2_14B(JObject h) => h.ContainsKey("net.blocks.0.adaln_modulation_cross_attn.1.weight");
         bool isLumina2(JObject h) => hasKey(h, "cap_embedder.0.weight");
-        bool isZImage(JObject h) => hasKey(h, "context_refiner.0.attention.k_norm.weight") && hasKey(h, "layers.0.adaLN_modulation.0.bias");
+        bool isZImage(JObject h) => (hasKey(h, "context_refiner.0.attention.k_norm.weight") || hasKey(h, "context_refiner.0.attention.norm_k.weight")) && hasKey(h, "layers.0.adaLN_modulation.0.bias");
         bool isOvis(JObject h) => hasKey(h, "double_blocks.0.img_mlp.down_proj.weight");
         bool isZImageLora(JObject h) => hasKey(h, "layers.0.adaLN_modulation.0.lora_A.weight") && hasKey(h, "layers.9.feed_forward.w3.lora_B.weight");
         bool isZImageControlNetDiffPatch(JObject h) => h.ContainsKey("control_layers.0.adaLN_modulation.0.weight") && h.ContainsKey("control_noise_refiner.0.adaLN_modulation.0.weight") && h.ContainsKey("control_layers.0.feed_forward.w3.weight");
@@ -170,6 +170,7 @@ public class T2IModelClassSorter
         bool isOmniGen(JObject h) => h.ContainsKey("time_caption_embed.timestep_embedder.linear_2.weight") && h.ContainsKey("context_refiner.0.attn.norm_k.weight");
         bool isQwenImage(JObject h) => (h.ContainsKey("time_text_embed.timestep_embedder.linear_1.bias") && h.ContainsKey("img_in.bias") && (h.ContainsKey("transformer_blocks.0.attn.add_k_proj.bias") || h.ContainsKey("transformer_blocks.0.attn.add_qkv_proj.bias")))
             || (h.ContainsKey("model.diffusion_model.time_text_embed.timestep_embedder.linear_1.bias") && h.ContainsKey("model.diffusion_model.img_in.bias") && (h.ContainsKey("model.diffusion_model.transformer_blocks.0.attn.add_k_proj.bias") || h.ContainsKey("model.diffusion_model.transformer_blocks.0.attn.add_qkv_proj.bias")));
+        bool isQwenImageEdit2511(JObject h) => h.ContainsKey("__index_timestep_zero__");
         bool isQwenImageLora(JObject h) => (h.ContainsKey("transformer_blocks.0.attn.add_k_proj.lora_down.weight") && h.ContainsKey("transformer_blocks.0.img_mlp.net.0.proj.lora_down.weight"))
                                             || (h.ContainsKey("transformer.transformer_blocks.0.attn.to_k.lora.down.weight") && h.ContainsKey("transformer.transformer_blocks.0.attn.to_out.0.lora.down.weight"))
                                             || (h.ContainsKey("transformer_blocks.0.attn.add_k_proj.lora_A.default.weight") && h.ContainsKey("transformer_blocks.0.img_mlp.net.2.lora_A.default.weight"))
@@ -543,7 +544,7 @@ public class T2IModelClassSorter
         // ====================== Qwen Image ======================
         Register(new() { ID = "qwen-image", CompatClass = CompatQwenImage, Name = "Qwen Image", StandardWidth = 1328, StandardHeight = 1328, IsThisModelOfClass = (m, h) =>
         {
-            return isQwenImage(h) && !isControlnetX(h) && !isSD3Controlnet(h);
+            return isQwenImage(h) && !isControlnetX(h) && !isSD3Controlnet(h) && !isQwenImageEdit2511(h);
         }});
         Register(new() { ID = "qwen-image-edit", CompatClass = CompatQwenImage, Name = "Qwen Image Edit", StandardWidth = 1328, StandardHeight = 1328, IsThisModelOfClass = (m, h) =>
         {
@@ -551,7 +552,7 @@ public class T2IModelClassSorter
         }});
         Register(new() { ID = "qwen-image-edit-plus", CompatClass = CompatQwenImage, Name = "Qwen Image Edit Plus", StandardWidth = 1328, StandardHeight = 1328, IsThisModelOfClass = (m, h) =>
         {
-            return false;
+            return isQwenImage(h) && !isControlnetX(h) && !isSD3Controlnet(h) && isQwenImageEdit2511(h);
         }});
         Register(new() { ID = "qwen-image/controlnet", CompatClass = CompatQwenImage, Name = "Qwen Image ControlNet", StandardWidth = 1328, StandardHeight = 1328, IsThisModelOfClass = (m, h) =>
         {
@@ -772,6 +773,7 @@ public class T2IModelClassSorter
             ?? fix(header.Value<string>("model_type"));
         if (arch is not null)
         {
+            arch = arch.ToLowerFast();
             string res = fix(header["__metadata__"]?.Value<string>("modelspec.resolution"))
                 ?? fix(header["__metadata__"]?.Value<string>("resolution"))
                 ?? fix(header.Value<string>("modelspec.resolution"))
@@ -781,7 +783,7 @@ public class T2IModelClassSorter
             int height = string.IsNullOrWhiteSpace(h) ? 0 : int.Parse(h);
             if (Remaps.TryGetValue(arch, out string remapTo))
             {
-                arch = remapTo;
+                arch = remapTo.ToLowerFast();
             }
             if (ModelClasses.TryGetValue(arch, out T2IModelClass clazz))
             {
