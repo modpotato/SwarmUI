@@ -319,10 +319,10 @@ public class T2IParamTypes
     public static T2IRegisteredParam<double> CFGScale, VariationSeedStrength, InitImageCreativity, InitImageResetToNorm, InitImageNoise, RefinerControl, RefinerUpscale, RefinerCFGScale, ReVisionStrength, AltResolutionHeightMult,
         FreeUBlock1, FreeUBlock2, FreeUSkip1, FreeUSkip2, GlobalRegionFactor, EndStepsEarly, SamplerSigmaMin, SamplerSigmaMax, SamplerRho, VideoAugmentationLevel, VideoCFG, VideoMinCFG, Video2VideoCreativity, VideoSwapPercent, VideoExtendSwapPercent, IP2PCFG2, RegionalObjectCleanupFactor, SigmaShift, SegmentThresholdMax, SegmentCFGScale, FluxGuidanceScale;
     public static T2IRegisteredParam<Image> InitImage, MaskImage, VideoEndFrame;
-    public static T2IRegisteredParam<T2IModel> Model, RefinerModel, VAE, RegionalObjectInpaintingModel, SegmentModel, VideoModel, VideoSwapModel, RefinerVAE, ClipLModel, ClipGModel, ClipVisionModel, T5XXLModel, LLaVAModel, LLaMAModel, QwenModel, MistralModel, VideoExtendModel, VideoExtendSwapModel;
+    public static T2IRegisteredParam<T2IModel> Model, RefinerModel, VAE, RegionalObjectInpaintingModel, SegmentModel, VideoModel, VideoSwapModel, RefinerVAE, ClipLModel, ClipGModel, ClipVisionModel, T5XXLModel, LLaVAModel, LLaMAModel, QwenModel, MistralModel, GemmaModel, VideoExtendModel, VideoExtendSwapModel;
     public static T2IRegisteredParam<List<string>> Loras, LoraWeights, LoraTencWeights, LoraSectionConfinement;
     public static T2IRegisteredParam<List<Image>> PromptImages;
-    public static T2IRegisteredParam<bool> OutputIntermediateImages, DoNotSave, DoNotSaveIntermediates, ControlNetPreviewOnly, RevisionZeroPrompt, RemoveBackground, NoSeedIncrement, NoPreviews, VideoBoomerang, ModelSpecificEnhancements, UseInpaintingEncode, MaskCompositeUnthresholded, SaveSegmentMask, InitImageRecompositeMask, UseReferenceOnly, RefinerDoTiling, AutomaticVAE, ZeroNegative, Text2VideoBoomerang, FluxDisableGuidance, SmartImagePromptResizing, NoLoadModels, NoInternalSpecialHandling, ForwardRawBackendData,
+    public static T2IRegisteredParam<bool> OutputIntermediateImages, DoNotSave, DoNotSaveIntermediates, ControlNetPreviewOnly, RevisionZeroPrompt, RemoveBackground, NoSeedIncrement, NoPreviews, VideoBoomerang, ModelSpecificEnhancements, UseInpaintingEncode, MaskCompositeUnthresholded, SaveSegmentMask, InitImageRecompositeMask, UseReferenceOnly, RefinerDoTiling, AutomaticVAE, ZeroNegative, Text2VideoBoomerang, FluxDisableGuidance, SmartImagePromptResizing, NoLoadModels, NoInternalSpecialHandling, ForwardRawBackendData, ForwardSwarmData,
         PlaceholderParamGroupStarred, PlaceholderParamGroupUser1, PlaceholderParamGroupUser2, PlaceholderParamGroupUser3;
 
     public static T2IParamGroup GroupImagePrompting, GroupCore, GroupVariation, GroupResolution, GroupSampling, GroupInitImage, GroupRefiners, GroupRefinerOverrides,
@@ -635,7 +635,7 @@ public class T2IParamTypes
             "None", IgnoreIf: "None", Permission: Permissions.ModelParams, IsAdvanced: true, Toggleable: true, GetValues: listVaes, Subtype: "VAE", Group: GroupAdvancedModelAddons, ChangeWeight: 7
             ));
         AutomaticVAE = Register<bool>(new("Automatic VAE", "Whether to automatically select the VAE based on the main model and your user settings.\nOnly applied if a VAE is not specified.",
-            "false", IgnoreIf: "false", Permission: Permissions.ModelParams, IsAdvanced: true, Toggleable: true, VisibleNormally: false, Group: GroupAdvancedModelAddons, ChangeWeight: 7
+            "false", IgnoreIf: "false", Permission: Permissions.ModelParams, IsAdvanced: true, Toggleable: true, VisibleNormally: false, Group: GroupAdvancedModelAddons, ChangeWeight: 7, Nonreusable: true
             ));
         Loras = Register<List<string>>(new("LoRAs", "LoRAs (Low-Rank-Adaptation Models) are a way to customize the content of a model without totally replacing it.\nYou can enable one or several LoRAs over top of one model.",
             "", IgnoreIf: "", IsAdvanced: true, Clean: (_, s) => CleanModelNameList(s), GetValues: (session) => CleanModelList(Program.T2IModelSets["LoRA"].ListModelNamesFor(session)), Group: GroupAdvancedModelAddons, VisibleNormally: false, ChangeWeight: 8, Subtype: "LoRA"
@@ -671,6 +671,9 @@ public class T2IParamTypes
             "", IgnoreIf: "", Group: GroupAdvancedModelAddons, Subtype: "Clip", Permission: Permissions.ModelParams, Toggleable: true, IsAdvanced: true, OrderPriority: 20, ChangeWeight: 7
             ));
         MistralModel = Register<T2IModel>(new("Mistral Model", "Which Mistral LLM to use as a text encoder, for Flux.2-style 'diffusion_models' folder models.",
+            "", IgnoreIf: "", Group: GroupAdvancedModelAddons, Subtype: "Clip", Permission: Permissions.ModelParams, Toggleable: true, IsAdvanced: true, OrderPriority: 20, ChangeWeight: 7
+            ));
+        GemmaModel = Register<T2IModel>(new("Gemma Model", "Which Gemma LLM to use as a text encoder, for models that use Gemma (such as Lumina2, LTX2).",
             "", IgnoreIf: "", Group: GroupAdvancedModelAddons, Subtype: "Clip", Permission: Permissions.ModelParams, Toggleable: true, IsAdvanced: true, OrderPriority: 20, ChangeWeight: 7
             ));
         TorchCompile = Register<string>(new("Torch Compile", "Torch.Compile is a way to dynamically accelerate AI models.\nIt wastes a bit of time (around a minute) on the first call compiling a graph of the generation, and then all subsequent generations run faster thanks to the compiled graph.\nTorch.Compile depends on Triton, which is difficult to install on Windows, easier on Linux.",
@@ -713,12 +716,15 @@ public class T2IParamTypes
             "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, OrderPriority: -14
             ));
         NoLoadModels = Register<bool>(new("No Load Models", "If checked, tells the server that if this request would cause a backend to load a model, to just skip doing that.\nThe backend will be marked as if the model is loaded, instantly without processing.",
-            "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, OrderPriority: -13
+            "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, OrderPriority: -13, IntentionalUnused: true
             ));
         NoInternalSpecialHandling = Register<bool>(new("No Internal Special Handling", "If checked, tells the server that it should not do any internal special handling in this request.\nA key example is in ComfyUI usage, inputs and outputs stored to comfy dirs will not be removed.",
             "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, OrderPriority: -13, VisibleNormally: false
             ));
         ForwardRawBackendData = Register<bool>(new("Forward Raw Backend Data", "If checked, tells the server to forward any raw backend data (eg comfy websocket data) to the caller.\nThis is for advanced usage (eg API calls), not normal users.",
+            "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, HideFromMetadata: true, VisibleNormally: false
+            ));
+        ForwardSwarmData = Register<bool>(new("Forward Swarm Data", "If checked, tells the server to forward Swarm internal helper data.\nThis is for advanced usage (eg API calls), not normal users.",
             "false", IgnoreIf: "false", IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, HideFromMetadata: true, VisibleNormally: false
             ));
         Webhooks = Register<string>(new("Webhooks", "What webhooks are enabled for this generation job.",
@@ -744,13 +750,13 @@ public class T2IParamTypes
             "", IgnoreIf: "", IsAdvanced: true, Clean: ApplyStringEdit, Group: GroupSwarmInternal, ViewType: ParamViewType.BIG, AlwaysRetain: true, OrderPriority: 0, IntentionalUnused: true
             ));
         ImageFormat = Register<string>(new("Image Format", "Optional override for the final image file format.",
-            "PNG", GetValues: (_) => [.. Enum.GetNames(typeof(ImageFile.ImageFormat))], IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, Toggleable: true, OrderPriority: 1
+            "PNG", GetValues: (_) => [.. Enum.GetNames(typeof(ImageFile.ImageFormat))], IsAdvanced: true, Group: GroupSwarmInternal, AlwaysRetain: true, Toggleable: true, OrderPriority: 1, IntentionalUnused: true
             ));
         BitDepth = Register<string>(new("Color Depth", "Specifies the color depth (in bits per channel) to use.\nOnly works for 'PNG' image file format currently.\n'8-bit' is normal (8 bits per red, 8 for green, 8 for blue, making 24 bits total per pixel).\nand '16-bit' encodes additional high-precision (HDR-like) data.\nNote that overprecision data is unlikely to be meaningful, as currently available models haven't been trained for that.",
             "8bit", IgnoreIf: "8bit", GetValues: (_) => ["8bit///8-bit per channel (24-bit total)", "16bit///16-bit per channel (48-bit total)"], IsAdvanced: true, Group: GroupSwarmInternal, OrderPriority: 1.5
             ));
         OverrideOutpathFormat = Register<string>(new("Override Outpath Format", $"Override the Outpath-Format user setting.\nFull details in <a target=\"_blank\" href=\"{Utilities.RepoDocsRoot}User%20Settings.md#path-format\">the docs here</a>.",
-            "raw/[year]-[month]-[day]/[hour][minute][request_time_inc]-[prompt]-[model]", Toggleable: true, IsAdvanced: true, Group: GroupSwarmInternal, OrderPriority: 3
+            "raw/[year]-[month]-[day]/[hour][minute][request_time_inc]-[prompt]-[model]", Toggleable: true, IsAdvanced: true, Group: GroupSwarmInternal, OrderPriority: 3, IntentionalUnused: true
             ));
         ModelSpecificEnhancements = Register<bool>(new("Model Specific Enhancements", "If checked, enables model-specific enhancements.\nFor example, on SDXL, smarter res-cond will be used.\nAlso, some video models will automatically use tiled VAE when this is enabled, even if you didn't manually enable tiled VAE.\nIf unchecked, will prefer more 'raw' behavior.",
             "true", IgnoreIf: "true", IsAdvanced: true, Group: GroupSwarmInternal, OrderPriority: 5

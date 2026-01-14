@@ -57,7 +57,8 @@ public class T2IModelClassSorter
         CompatChroma = RegisterCompat(new() { ID = "chroma", ShortCode = "Chroma" }),
         CompatChromaRadiance = RegisterCompat(new() { ID = "chroma-radiance", ShortCode = "ChrRad" }),
         CompatAltDiffusion = RegisterCompat(new() { ID = "alt_diffusion_v1", ShortCode = "AltD" }),
-        CompatLtxv = RegisterCompat(new() { ID = "lightricks-ltx-video", ShortCode = "LTXV" }),
+        CompatLtxv = RegisterCompat(new() { ID = "lightricks-ltx-video", ShortCode = "LTXV", IsText2Video = true, IsImage2Video = true }),
+        CompatLtxv2 = RegisterCompat(new() { ID = "lightricks-ltx-video-2", ShortCode = "LTXV2", IsText2Video = true, IsImage2Video = true }),
         CompatSana = RegisterCompat(new() { ID = "nvidia-sana-1600", ShortCode = "Sana" }),
         CompatLumina2 = RegisterCompat(new() { ID = "lumina-2", ShortCode = "Lumi2" }),
         CompatHiDreamI1 = RegisterCompat(new() { ID = "hidream-i1", ShortCode = "HiDrm", LorasTargetTextEnc = false }),
@@ -134,6 +135,8 @@ public class T2IModelClassSorter
         bool isMochiVae(JObject h) => h.ContainsKey("encoder.layers.4.layers.1.attn_block.attn.qkv.weight") || h.ContainsKey("layers.4.layers.1.attn_block.attn.qkv.weight") || h.ContainsKey("blocks.2.blocks.3.stack.5.weight") || h.ContainsKey("decoder.blocks.2.blocks.3.stack.5.weight");
         bool isLtxv(JObject h) => hasKey(h, "adaln_single.emb.timestep_embedder.linear_1.bias");
         bool isLtxvVae(JObject h) => h.ContainsKey("decoder.conv_in.conv.bias") && h.ContainsKey("decoder.last_time_embedder.timestep_embedder.linear_1.bias");
+        bool isLtxv2(JObject h) => hasKey(h, "transformer_blocks.1.audio_to_video_attn.k_norm.weight");
+        bool isLtxv2Lora(JObject h) => hasKey(h, "transformer_blocks.0.attn1.to_k.lora_A.weight") && hasKey(h, "transformer_blocks.0.attn1.to_out.0.lora_A.weight") && hasKey(h, "transformer_blocks.0.ff.net.0.proj.lora_A.weight");
         bool isSana(JObject h) => h.ContainsKey("attention_y_norm.weight") && h.ContainsKey("blocks.0.attn.proj.weight");
         bool isHunyuanVideo(JObject h) => h.ContainsKey("model.model.txt_in.individual_token_refiner.blocks.1.self_attn.qkv.weight") || h.ContainsKey("txt_in.individual_token_refiner.blocks.1.self_attn_qkv.weight");
         bool isHunyuanVideoSkyreelsImage2V(JObject h) => h.TryGetValue("img_in.proj.weight", out JToken jtok) && jtok["shape"].ToArray()[1].Value<long>() == 32;
@@ -595,6 +598,23 @@ public class T2IModelClassSorter
         {
             return false; // TODO?
         }});
+        // ====================== LTX-V ======================
+        Register(new() { ID = "lightricks-ltx-video", CompatClass = CompatLtxv, Name = "Lightricks LTX Video", StandardWidth = 768, StandardHeight = 512, IsThisModelOfClass = (m, h) =>
+        {
+            return isLtxv(h) && !isLtxv2(h);
+        }});
+        Register(new() { ID = "lightricks-ltx-video/vae", CompatClass = CompatLtxv, Name = "Lightricks LTX Video VAE", StandardWidth = 768, StandardHeight = 512, IsThisModelOfClass = (m, h) =>
+        {
+            return isLtxvVae(h);
+        }});
+        Register(new() { ID = "lightricks-ltx-video-2", CompatClass = CompatLtxv2, Name = "Lightricks LTX Video 2", StandardWidth = 640, StandardHeight = 640, IsThisModelOfClass = (m, h) =>
+        {
+            return isLtxv2(h);
+        }});
+        Register(new() { ID = "lightricks-ltx-video-2/lora", CompatClass = CompatLtxv2, Name = "Lightricks LTX Video 2 LoRA", StandardWidth = 640, StandardHeight = 640, IsThisModelOfClass = (m, h) =>
+        {
+            return isLtxv2Lora(h);
+        }});
         // ====================== Random Other Models ======================
         Register(new() { ID = "chroma", CompatClass = CompatChroma, Name = "Chroma", StandardWidth = 1024, StandardHeight = 1024, IsThisModelOfClass = (m, h) =>
         {
@@ -607,14 +627,6 @@ public class T2IModelClassSorter
         Register(new() { ID = "alt_diffusion_v1_512_placeholder", CompatClass = CompatAltDiffusion, Name = "Alt-Diffusion", StandardWidth = 512, StandardHeight = 512, IsThisModelOfClass = (m, h) =>
         {
             return IsAlt(h);
-        }});
-        Register(new() { ID = "lightricks-ltx-video", CompatClass = CompatLtxv, Name = "Lightricks LTX Video", StandardWidth = 768, StandardHeight = 512, IsThisModelOfClass = (m, h) =>
-        {
-            return isLtxv(h);
-        }});
-        Register(new() { ID = "lightricks-ltx-video/vae", CompatClass = CompatLtxv, Name = "Lightricks LTX Video VAE", StandardWidth = 768, StandardHeight = 512, IsThisModelOfClass = (m, h) =>
-        {
-            return isLtxvVae(h);
         }});
         Register(new() { ID = "nvidia-sana-1600", CompatClass = CompatSana, Name = "NVIDIA Sana 1600M", StandardWidth = 1024, StandardHeight = 1024, IsThisModelOfClass = (m, h) =>
         {
@@ -724,17 +736,17 @@ public class T2IModelClassSorter
         Remaps["flux-1-dev/lora"] = "Flux.1-dev/lora";
         Remaps["flux-1-dev/lora"] = "Flux.1-dev/lora";
         Remaps["flux-dev/lora"] = "Flux.1-dev/lora";
-        Remaps["Flux.1-depth-dev-lora"] = "Flux.1-dev/lora-depth";
-        Remaps["Flux.1-canny-dev-lora"] = "Flux.1-dev/lora-canny";
-        Remaps["Flux.1-depth-dev"] = "Flux.1-dev/depth";
-        Remaps["Flux.1-canny-dev"] = "Flux.1-dev/canny";
-        Remaps["Flux.1-fill-dev"] = "Flux.1-dev/inpaint";
+        Remaps["flux.1-depth-dev-lora"] = "Flux.1-dev/lora-depth";
+        Remaps["flux.1-canny-dev-lora"] = "Flux.1-dev/lora-canny";
+        Remaps["flux.1-depth-dev"] = "Flux.1-dev/depth";
+        Remaps["flux.1-canny-dev"] = "Flux.1-dev/canny";
+        Remaps["flux.1-fill-dev"] = "Flux.1-dev/inpaint";
         Remaps["flux-1-schnell"] = "Flux.1-schnell";
         Remaps["flux-1-schnell/lora"] = "Flux.1-dev/lora";
         Remaps["flux-1-schnell/controlnet"] = "Flux.1-dev/controlnet";
-        Remaps["Flux.1-schnell/lora"] = "Flux.1-dev/lora";
-        Remaps["Flux.1-schnell/controlnet"] = "Flux.1-dev/controlnet";
-        Remaps["Flux.1-AE"] = "flux.1/vae";
+        Remaps["flux.1-schnell/lora"] = "Flux.1-dev/lora";
+        Remaps["flux.1-schnell/controlnet"] = "Flux.1-dev/controlnet";
+        Remaps["flux.1-ae"] = "flux.1/vae";
         Remaps["stable-cascade-v1-stage-a"] = "stable-cascade-v1-stage-a/vae";
         Remaps["stable-diffusion-3-3-5-large"] = "stable-diffusion-v3.5-large";
         Remaps["stable-diffusion-3-3-5-large/lora"] = "stable-diffusion-v3.5-large/lora";

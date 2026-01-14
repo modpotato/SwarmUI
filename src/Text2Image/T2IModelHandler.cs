@@ -264,13 +264,14 @@ public class T2IModelHandler
             {
                 Directory.CreateDirectory(path);
             }
-            lock (ModificationLock)
-            {
-                Models.Clear();
-            }
+            ConcurrentDictionary<string, T2IModel> newModels = new();
             foreach (string path in FolderPaths)
             {
-                AddAllFromFolder(path, "");
+                AddAllFromFolder(path, "", newModels);
+            }
+            lock (ModificationLock)
+            {
+                Models = newModels;
             }
             Logs.Debug($"Have {Models.Count} {ModelType} models.");
             T2IModel[] dupped = [.. Models.Values.Where(m => m.OtherPaths.Count > 0)];
@@ -698,7 +699,7 @@ public class T2IModelHandler
                 Date = limitLength(pickBest(metaHeader?.Value<string>("modelspec.date"), metaHeader?.Value<string>("date")), basicLimit),
                 Preprocessor = limitLength(pickBest(metaHeader?.Value<string>("modelspec.preprocessor"), metaHeader?.Value<string>("preprocessor")), basicLimit),
                 Tags = limitSize(tags, 128),
-                IsNegativeEmbedding = (pickBest(metaHeader?.Value<string>("modelspec.is_negative_embedding"), metaHeader?.Value<string>("is_negative_embedding")) ?? "false") == "true",
+                IsNegativeEmbedding = (pickBest(metaHeader?.Value<string>("modelspec.is_negative_embedding"), metaHeader?.Value<string>("is_negative_embedding")) ?? "false").ToLowerFast() == "true",
                 LoraDefaultWeight = limitLength(pickBest(metaHeader?.Value<string>("modelspec.lora_default_weight"), metaHeader?.Value<string>("lora_default_weight")), basicLimit),
                 LoraDefaultConfinement = limitLength(pickBest(metaHeader?.Value<string>("modelspec.lora_default_confinement"), metaHeader?.Value<string>("lora_default_confinement")), basicLimit),
                 PredictionType = limitLength(pickBest(metaHeader?.Value<string>("modelspec.prediction_type"), metaHeader?.Value<string>("prediction_type")), basicLimit),
@@ -741,7 +742,7 @@ public class T2IModelHandler
     }
 
     /// <summary>Internal model adder route. Do not call.</summary>
-    public void AddAllFromFolder(string pathBase, string folder)
+    public void AddAllFromFolder(string pathBase, string folder, ConcurrentDictionary<string, T2IModel> dict)
     {
         if (IsShutdown)
         {
@@ -771,7 +772,7 @@ public class T2IModelHandler
             }
             try
             {
-                AddAllFromFolder(pathBase, path);
+                AddAllFromFolder(pathBase, path, dict);
             }
             catch (UnauthorizedAccessException)
             {
@@ -792,7 +793,7 @@ public class T2IModelHandler
                 return;
             }
             string fullFilename = $"{prefix}{fn}";
-            if (Models.TryGetValue(fullFilename, out T2IModel existingModel))
+            if (dict.TryGetValue(fullFilename, out T2IModel existingModel))
             {
                 lock (existingModel.OtherPaths)
                 {
@@ -811,7 +812,7 @@ public class T2IModelHandler
                     Description = "(Metadata not yet loaded.)",
                     PreviewImage = "imgs/model_placeholder.jpg",
                 };
-                Models[fullFilename] = model;
+                dict[fullFilename] = model;
                 try
                 {
                     LoadMetadata(model);
@@ -838,7 +839,7 @@ public class T2IModelHandler
                     PreviewImage = "imgs/legacy_ckpt.jpg",
                 };
                 model.PreviewImage = GetAutoFormatImage(model) ?? model.PreviewImage;
-                Models[fullFilename] = model;
+                dict[fullFilename] = model;
                 model.AutoWarn();
             }
         });

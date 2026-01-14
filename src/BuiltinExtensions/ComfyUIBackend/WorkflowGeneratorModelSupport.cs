@@ -46,6 +46,9 @@ public partial class WorkflowGenerator
     /// <summary>Returns true if the current model is Lightricks LTX Video.</summary>
     public bool IsLTXV() => IsModelCompatClass(T2IModelClassSorter.CompatLtxv);
 
+    /// <summary>Returns true if the current model is Lightricks LTX Video 2.</summary>
+    public bool IsLTXV2() => IsModelCompatClass(T2IModelClassSorter.CompatLtxv2);
+
     /// <summary>Returns true if the current model is Black Forest Labs' Flux.1.</summary>
     public bool IsFlux() => IsModelCompatClass(T2IModelClassSorter.CompatFlux);
 
@@ -202,7 +205,7 @@ public partial class WorkflowGenerator
     /// <summary>Returns true if the current main text input model model is a Video model (as opposed to image).</summary>
     public bool IsVideoModel()
     {
-        return IsLTXV() || IsMochi() || IsHunyuanVideo() || IsHunyuanVideo15() || IsNvidiaCosmos1() || IsAnyWanModel() || IsKandinsky5VidLite() || IsKandinsky5VidPro();
+        return IsLTXV() || IsLTXV2() || IsMochi() || IsHunyuanVideo() || IsHunyuanVideo15() || IsNvidiaCosmos1() || IsAnyWanModel() || IsKandinsky5VidLite() || IsKandinsky5VidPro();
     }
 
     /// <summary>Creates an Empty Latent Image node.</summary>
@@ -276,6 +279,28 @@ public partial class WorkflowGenerator
                 ["length"] = UserInput.Get(T2IParamTypes.Text2VideoFrames, 97),
                 ["height"] = height,
                 ["width"] = width
+            }, id);
+        }
+        else if (IsLTXV2())
+        {
+            string emptyVideo = CreateNode("EmptyLTXVLatentVideo", new JObject()
+            {
+                ["batch_size"] = batchSize,
+                ["length"] = UserInput.Get(T2IParamTypes.Text2VideoFrames, 97),
+                ["height"] = height,
+                ["width"] = width
+            });
+            string emptyAudio = CreateNode("LTXVEmptyLatentAudio", new JObject()
+            {
+                ["batch_size"] = batchSize,
+                ["frames_number"] = UserInput.Get(T2IParamTypes.Text2VideoFrames, 97),
+                ["frame_rate"] = UserInput.Get(T2IParamTypes.VideoFPS, 24),
+                ["audio_vae"] = FinalAudioVae
+            });
+            return CreateNode("LTXVConcatAVLatent", new JObject()
+            {
+                ["video_latent"] = NodePath(emptyVideo, 0),
+                ["audio_latent"] = NodePath(emptyAudio, 0)
             }, id);
         }
         else if (IsWanVideo22())
@@ -417,6 +442,15 @@ public partial class WorkflowGenerator
             g.LoadingVAE = g.CreateVAELoader(vaeFile, nodeId);
         }
 
+        public void AudioVaeLoad(string ckpt)
+        {
+            string avaeLoader = g.CreateNode("LTXVAudioVAELoader", new JObject()
+            {
+                ["ckpt_name"] = ckpt
+            });
+            g.FinalAudioVae = [avaeLoader, 0];
+        }
+
         string RequireClipModel(string name, string url, string hash, T2IRegisteredParam<T2IModel> param)
         {
             if (param is not null && g.UserInput.TryGet(param, out T2IModel model))
@@ -474,7 +508,7 @@ public partial class WorkflowGenerator
 
         public string GetQwen3_4bModel()
         {
-            return RequireClipModel("qwen_3_4b.safetensors", "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors", "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a", T2IParamTypes.QwenModel);
+            return RequireClipModel("qwen_3_4b.safetensors", "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors", "72450b19758172c5a7273cf7de729d1c17e7f434a104a00167624cba94f68f15", T2IParamTypes.QwenModel);
         }
 
         public string GetOvisQwenModel()
@@ -535,8 +569,12 @@ public partial class WorkflowGenerator
 
         public string GetGemma2Model()
         {
-            // TODO: Selector param?
-            return RequireClipModel("gemma_2_2b_fp16.safetensors", "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/text_encoders/gemma_2_2b_fp16.safetensors", "29761442862f8d064d3f854bb6fabf4379dcff511a7f6ba9405a00bd0f7e2dbd", null);
+            return RequireClipModel("gemma_2_2b_fp16.safetensors", "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/text_encoders/gemma_2_2b_fp16.safetensors", "29761442862f8d064d3f854bb6fabf4379dcff511a7f6ba9405a00bd0f7e2dbd", T2IParamTypes.GemmaModel);
+        }
+
+        public string GetGemma3_12bModel()
+        {
+            return RequireClipModel("gemma_3_12B_it.safetensors", "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors", "aaca463d11e6d8d2a4bdb0d6299214c15ef78a3f73e0ef8113d5a9d0219b3f6d", T2IParamTypes.GemmaModel);
         }
 
         public void LoadClip(string type, string model)
@@ -553,6 +591,17 @@ public partial class WorkflowGenerator
                 ["device"] = "default"
             });
             g.LoadingClip = [singleClipLoader, 0];
+        }
+
+        public void LoadClipAudio(string model, string ckpt)
+        {
+            string loaderType = "LTXAVTextEncoderLoader";
+            string clipLoader = g.CreateNode(loaderType, new JObject()
+            {
+                ["text_encoder"] = model,
+                ["ckpt_name"] = ckpt
+            });
+            g.LoadingClip = [clipLoader, 0];
         }
 
         public void LoadClip2(string type, string modelA, string modelB)
@@ -985,6 +1034,11 @@ public partial class WorkflowGenerator
         {
             helpers.LoadClip("ltxv", helpers.GetT5XXLModel());
             helpers.DoVaeLoader(null, "lightricks-ltx-video", "ltxv-vae");
+        }
+        else if (IsLTXV2())
+        {
+            helpers.LoadClipAudio(helpers.GetGemma3_12bModel(), model.ToString(ModelFolderFormat));
+            helpers.AudioVaeLoad(model.ToString(ModelFolderFormat));
         }
         else if (IsHunyuanVideo())
         {

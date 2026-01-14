@@ -85,11 +85,14 @@ public partial class WorkflowGenerator
         FinalInputImage = null,
         FinalMask = null,
         FinalVae = ["4", 2],
+        FinalAudioVae = null,
         FinalLatentImage = ["5", 0],
+        FinalLatentAudio = null,
         FinalPrompt = ["6", 0],
         FinalNegativePrompt = ["7", 0],
         FinalSamples = ["10", 0],
         FinalImageOut = null,
+        FinalAudioOut = null,
         FinalTrimLatent = null,
         LoadingModel = null, LoadingClip = null, LoadingVAE = null;
 
@@ -342,7 +345,7 @@ public partial class WorkflowGenerator
             float tencWeight = tencWeights is null || i >= tencWeights.Count ? weight : float.Parse(tencWeights[i]);
             string id = GetStableDynamicID(2000, i);
             string specialFormat = FinalLoadedModel?.Metadata?.SpecialFormat;
-            if (specialFormat == "nunchaku" || specialFormat == "nunchaku-fp4")
+            if (IsFlux() && (specialFormat == "nunchaku" || specialFormat == "nunchaku-fp4"))
             {
                 // This is dirty to use this alt node, but it seems required for Nunchaku.
                 string newId = CreateNode("NunchakuFluxLoraLoader", new JObject()
@@ -622,7 +625,8 @@ public partial class WorkflowGenerator
                 ["lossless"] = false,
                 ["quality"] = 95,
                 ["method"] = "default",
-                ["format"] = UserInput.Get(T2IParamTypes.Text2VideoFormat, "webp")
+                ["format"] = UserInput.Get(T2IParamTypes.Text2VideoFormat, "h264-mp4"),
+                ["audio"] = FinalAudioOut
             }, id);
         }
         else if (Features.Contains("comfy_saveimage_ws") && !RestrictCustomNodes)
@@ -653,7 +657,8 @@ public partial class WorkflowGenerator
             ["lossless"] = false,
             ["quality"] = 95,
             ["method"] = "default",
-            ["format"] = format
+            ["format"] = format,
+            ["audio"] = FinalAudioOut
         }, id);
     }
 
@@ -687,8 +692,23 @@ public partial class WorkflowGenerator
     }
 
     /// <summary>Creates a VAEDecode node and returns its node ID.</summary>
-    public string CreateVAEDecode(JArray vae, JArray latent, string id = null)
+    public string CreateVAEDecode(JArray vae, JArray latent, string id = null, bool canAudioDecode = true)
     {
+        if (IsLTXV2() && FinalAudioVae is not null && canAudioDecode)
+        {
+            string separated = CreateNode("LTXVSeparateAVLatent", new JObject()
+            {
+                ["av_latent"] = latent
+            });
+            FinalLatentAudio = [separated, 1];
+            string audioDecoded = CreateNode("LTXVAudioVAEDecode", new JObject()
+            {
+                ["audio_vae"] = FinalAudioVae,
+                ["samples"] = FinalLatentAudio
+            });
+            FinalAudioOut = [audioDecoded, 0];
+            return CreateVAEDecode(vae, [separated, 0], id, false);
+        }
         if (UserInput.TryGet(T2IParamTypes.VAETileSize, out _) || UserInput.TryGet(T2IParamTypes.VAETemporalTileSize, out _))
         {
             return CreateNode("VAEDecodeTiled", new JObject()
@@ -737,7 +757,7 @@ public partial class WorkflowGenerator
         {
             previews ??= UserInput.Get(ComfyUIBackendExtension.VideoPreviewType, "animate");
         }
-        if (IsLTXV())
+        if (IsLTXV() || IsLTXV2())
         {
             if (!hadSpecialCond)
             {
@@ -1242,7 +1262,7 @@ public partial class WorkflowGenerator
             }
             if (fixSize && !doesFit)
             {
-                (width, height) = Utilities.ResToModelFit(width, height, target * target);
+                (width, height) = Utilities.ResToModelFit(width, height, target * target, precision: promptSize ? 1 : 64);
                 string scaleFix = CreateNode("ImageScale", new JObject()
                 {
                     ["image"] = img,
@@ -1432,7 +1452,7 @@ public partial class WorkflowGenerator
 
         public void PrepFullCond(WorkflowGenerator g)
         {
-            if (VideoModel.ModelClass?.CompatClass?.ID == "lightricks-ltx-video")
+            if (VideoModel.ModelClass?.CompatClass?.ID == T2IModelClassSorter.CompatLtxv.ID)
             {
                 VideoFPS ??= 24;
                 Frames ??= 97;
@@ -1458,6 +1478,63 @@ public partial class WorkflowGenerator
                     PosCond = [condNode, 0];
                     NegCond = [condNode, 1];
                     Latent = [condNode, 2];
+                }
+                DefaultCFG = 3;
+                string ltxvcond = g.CreateNode("LTXVConditioning", new JObject()
+                {
+                    ["positive"] = PosCond,
+                    ["negative"] = NegCond,
+                    ["frame_rate"] = VideoFPS
+                });
+                PosCond = [ltxvcond, 0];
+                NegCond = [ltxvcond, 1];
+                HadSpecialCond = true;
+                DefaultSampler = "euler";
+                DefaultScheduler = "ltxv-image";
+            }
+            else if (VideoModel.ModelClass?.CompatClass?.ID == T2IModelClassSorter.CompatLtxv2.ID)
+            {
+                VideoFPS ??= 24;
+                Frames ??= 97;
+                if (VideoEndFrame is not null)
+                {
+                    throw new SwarmReadableErrorException("LTX-V2 end-frame is TODO");
+                }
+                else
+                {
+                    string emptyLatent = g.CreateNode("EmptyLTXVLatentVideo", new JObject()
+                    {
+                        ["width"] = Width,
+                        ["height"] = Height,
+                        ["length"] = Frames,
+                        ["batch_size"] = 1
+                    });
+                    string emptyAudio = g.CreateNode("LTXVEmptyLatentAudio", new JObject()
+                    {
+                        ["audio_vae"] = g.FinalAudioVae,
+                        ["frames_number"] = Frames,
+                        ["frame_rate"] = VideoFPS,
+                        ["batch_size"] = 1
+                    });
+                    string preproc = g.CreateNode("LTXVPreprocess", new JObject()
+                    {
+                        ["image"] = g.FinalImageOut,
+                        ["img_compression"] = 32
+                    });
+                    string latentOutNode = g.CreateNode("LTXVImgToVideoInplace", new JObject()
+                    {
+                        ["vae"] = Vae,
+                        ["image"] = NodePath(preproc, 0),
+                        ["latent"] = NodePath(emptyLatent, 0),
+                        ["strength"] = 1.0,
+                        ["bypass"] = false
+                    });
+                    string concatNode = g.CreateNode("LTXVConcatAVLatent", new JObject()
+                    {
+                        ["video_latent"] = NodePath(latentOutNode, 0),
+                        ["audio_latent"] = NodePath(emptyAudio, 0)
+                    });
+                    Latent = [concatNode, 0];
                 }
                 DefaultCFG = 3;
                 string ltxvcond = g.CreateNode("LTXVConditioning", new JObject()
@@ -2524,24 +2601,29 @@ public partial class WorkflowGenerator
     public HashSet<string> UsedInputs = null;
 
     /// <summary>Returns true if the node is connected to anything, or false if it has no outbound connections.</summary>
-    public bool NodeIsConnectedAnywhere(string nodeId)
+    public bool NodeIsConnectedAnywhere(string nodeId, int ind = -1, string exclude = null)
     {
         if (UsedInputs is null)
         {
             UsedInputs = [];
-            foreach (JObject node in Workflow.Values().Cast<JObject>())
+            foreach (JProperty node in Workflow.Properties())
             {
-                JObject inputs = node["inputs"] as JObject;
+                if (node.Name == exclude)
+                {
+                    continue;
+                }
+                JObject inputs = node.Value["inputs"] as JObject;
                 foreach (JProperty property in inputs.Properties().ToArray())
                 {
                     if (property.Value is JArray jarr && jarr.Count == 2)
                     {
-                        UsedInputs.Add($"{jarr[0]}");
+                        UsedInputs.Add($"{jarr[0]}:-1");
+                        UsedInputs.Add($"{jarr[0]}:{jarr[1]}");
                     }
                 }
             }
         }
-        return UsedInputs.Contains(nodeId);
+        return UsedInputs.Contains($"{nodeId}:{ind}");
     }
 
     /// <summary>Removes a class of nodes if they are not connected to anything.</summary>

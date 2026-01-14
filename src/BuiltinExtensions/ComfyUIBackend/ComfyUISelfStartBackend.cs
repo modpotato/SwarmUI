@@ -82,7 +82,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
         // Example: ["ComfyUI-TeaCache"] = "b3429ef3dea426d2f167e348b44cd2f5a3674e7d"
     };
 
-    public static string SwarmValidatedFrontendVersion = "1.34.9";
+    public static string SwarmValidatedFrontendVersion = "1.35.9";
 
     /// <summary>List of known required python packages, as pairs of strings: Item1 is the folder name within python packages to look for, Item2 is the pip install command.</summary>
     public static List<(string, string)> RequiredPythonPackages =
@@ -568,7 +568,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
                 await update("comfyui_workflow_templates", $"comfyui-workflow-templates=={templateVers}");
             }
             string actualEmbedVers = getVers("comfyui_embedded_docs");
-            if ((doFixFrontend || doLatestFrontend) && reqs.TryGetValue("comfyui-embedded-docs", out Version embedDocsVers) && (actualEmbedVers is null || embedDocsVers < Version.Parse(actualEmbedVers)))
+            if ((doFixFrontend || doLatestFrontend) && reqs.TryGetValue("comfyui-embedded-docs", out Version embedDocsVers) && (actualEmbedVers is null || Version.Parse(actualEmbedVers) < embedDocsVers))
             {
                 await update("comfyui_embedded_docs", $"comfyui-embedded-docs=={embedDocsVers}");
             }
@@ -579,6 +579,11 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
             else if (!doFixFrontend)
             {
                 await install("comfyui_frontend_package", "comfyui-frontend-package");
+            }
+            string actualKitchenVers = getVers("comfy_kitchen");
+            if (reqs.TryGetValue("comfy-kitchen", out Version kitchenVers) && (actualKitchenVers is null || Version.Parse(actualKitchenVers) < kitchenVers))
+            {
+                await update("comfy_kitchen", $"comfy-kitchen=={kitchenVers}");
             }
             if (Directory.Exists($"{ComfyUIBackendExtension.Folder}/DLNodes/ComfyUI_IPAdapter_plus") || Directory.Exists($"{ComfyUIBackendExtension.Folder}/DLNodes/ComfyUI-nunchaku"))
             {
@@ -653,7 +658,7 @@ public class ComfyUISelfStartBackend : ComfyUIAPIAbstractBackend
                     Logs.Error($"Nunchaku is not currently supported on your Torch version ({torchPipVers} not in range [2.5, 2.11].");
                     isValid = false;
                 }
-                string nunchakuTargetVersion = "1.1.0";
+                string nunchakuTargetVersion = "1.2.0";
                 // eg https://github.com/nunchaku-tech/nunchaku/releases/download/v0.3.2/nunchaku-0.3.2+torch2.5-cp310-cp310-linux_x86_64.whl
                 string url = $"https://github.com/nunchaku-tech/nunchaku/releases/download/v{nunchakuTargetVersion}/nunchaku-{nunchakuTargetVersion}+torch{torchVers}-cp{pyVers}-cp{pyVers}-{osVers}.whl";
                 if (isValid)
