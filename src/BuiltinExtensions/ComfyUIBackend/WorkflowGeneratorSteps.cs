@@ -2,6 +2,7 @@ using System;
 using FreneticUtilities.FreneticExtensions;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Core;
+using SwarmUI.Media;
 using SwarmUI.Text2Image;
 using SwarmUI.Utils;
 
@@ -256,7 +257,7 @@ public class WorkflowGeneratorSteps
                 {
                     Logs.Warning($"Ignore TeaCache Mode parameter because the current model is Nunchaku which does not support TeaCache. Use 'Nunchaku Cache Threshold' for a similar effect to TeaCache.");
                 }
-                else if (g.IsFlux() || g.IsFlux2())
+                else if (g.IsFlux())
                 {
                     if (teaCacheMode != "video only")
                     {
@@ -373,7 +374,15 @@ public class WorkflowGeneratorSteps
         #region Base Image
         AddStep(g =>
         {
-            if (g.UserInput.TryGet(T2IParamTypes.InitImage, out Image img))
+            // TODO: Something like this for audio models.
+            /*if (g.IsAudioModel() && g.UserInput.TryGet(T2IParamTypes.InitAudio, out AudioFile audioData))
+            {
+                string audioNode = g.CreateLoadAudioNode(audioData, "${initaudio}", true);
+                g.FinalInputAudio = [audioNode, 0];
+                g.FinalLatentAudio = g.CreateAudioVAEEncode(g.FinalAudioVae, g.FinalInputAudio, "5");
+            }
+            else*/
+            if (!g.IsAudioModel() && g.UserInput.TryGet(T2IParamTypes.InitImage, out Image img))
             {
                 string maskImageNode = null;
                 if (g.UserInput.TryGet(T2IParamTypes.MaskImage, out Image mask))
@@ -1099,7 +1108,7 @@ public class WorkflowGeneratorSteps
                             ["end_percent"] = g.UserInput.Get(controlnetParams.End, 1)
                         });
                     }
-                    else if (g.IsSD3() || g.IsFlux() || g.IsFlux2() || g.IsChroma() || g.IsQwenImage())
+                    else if (g.IsSD3() || g.IsFlux() || g.IsAnyFlux2() || g.IsChroma() || g.IsQwenImage())
                     {
                         applyNode = g.CreateNode("ControlNetApplyAdvanced", new JObject()
                         {
@@ -1427,7 +1436,7 @@ public class WorkflowGeneratorSteps
         }, 1);
         #endregion
         #region Segmentation Processing
-        AddStep(g =>
+        void RunSegmentationProcessing(WorkflowGenerator g, bool isBeforeRefiner)
         {
             PromptRegion.Part[] parts = [.. new PromptRegion(g.UserInput.Get(T2IParamTypes.Prompt, "")).Parts.Where(p => p.Type == PromptRegion.PartType.Segment)];
             if (parts.Any())
@@ -1457,6 +1466,10 @@ public class WorkflowGeneratorSteps
                     PromptRegion.Part part = parts[i];
                     string[] segmentSections = part.DataText.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                     string segmentNode = null;
+                    if (segmentSections.Length == 0)
+                    {
+                        segmentSections = [""];
+                    }
                     foreach (string dataText in segmentSections)
                     {
                         string newSegmentNode = null;
@@ -1577,7 +1590,39 @@ public class WorkflowGeneratorSteps
                     g.FinalImageOut = g.RecompositeCropped(g.MaskShrunkInfo.BoundsNode, [g.MaskShrunkInfo.CroppedMask, 0], g.FinalImageOut, [decoded, 0]);
                     g.MaskShrunkInfo = new(null, null, null, null);
                 }
+                if (isBeforeRefiner)
+                {
+                    string encoded = g.CreateVAEEncode(g.FinalVae, g.FinalImageOut);
+                    g.FinalSamples = [encoded, 0];
+                    g.FinalImageOut = null;
+                }
             }
+        }
+        AddStep(g =>
+        {
+            if (g.UserInput.Get(T2IParamTypes.SegmentApplyAfter, "Refiner") != "Base")
+            {
+                return;
+            }
+            PromptRegion.Part[] parts = [.. new PromptRegion(g.UserInput.Get(T2IParamTypes.Prompt, "")).Parts.Where(p => p.Type == PromptRegion.PartType.Segment)];
+            if (!parts.Any())
+            {
+                return;
+            }
+            if (g.FinalImageOut is null)
+            {
+                string decodeNode = g.CreateVAEDecode(g.FinalVae, g.FinalSamples);
+                g.FinalImageOut = [decodeNode, 0];
+            }
+            RunSegmentationProcessing(g, isBeforeRefiner: true);
+        }, -4.5);
+        AddStep(g =>
+        {
+            if (g.UserInput.Get(T2IParamTypes.SegmentApplyAfter, "Refiner") != "Refiner")
+            {
+                return;
+            }
+            RunSegmentationProcessing(g, isBeforeRefiner: false);
         }, 5);
         #endregion
         #region SaveImage
@@ -1680,7 +1725,15 @@ public class WorkflowGeneratorSteps
                 }
                 if (nodeId is not null)
                 {
-                    g.CreateImageSaveNode(g.FinalImageOut, nodeId);
+                    // TODO: use CreateSaveNode and NodeOutData
+                    if (g.IsAudioModel())
+                    {
+                        g.CreateAudioSaveNode(g.FinalAudioOut, nodeId);
+                    }
+                    else
+                    {
+                        g.CreateImageSaveNode(g.FinalImageOut, nodeId);
+                    }
                 }
             }
         }, 10);

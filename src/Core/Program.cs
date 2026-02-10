@@ -86,6 +86,9 @@ public class Program
     /// <summary>General data directory root.</summary>
     public static string DataDir = "Data";
 
+    /// <summary>Temporary data folder, cleared on exit.</summary>
+    public static string TempDir = "Data/tmp";
+
     /// <summary>If a version update is available, this is the message.</summary>
     public static string VersionUpdateMessage = null, VersionUpdateMessageShort = null;
 
@@ -100,6 +103,9 @@ public class Program
 
     /// <summary>If true, user has requested that the server avoid saving data. This is not a hard requirement.</summary>
     public static bool NoPersist = false;
+
+    /// <summary>If true, user launched in dev build. If false, user launched in production mode.</summary>
+    public static bool IsDevMode = false;
 
     /// <summary>Primary execution entry point.</summary>
     public static void Main(string[] args)
@@ -117,7 +123,6 @@ public class Program
         };
         List<Task> waitFor = [];
         //Utilities.CheckDotNet("8");
-        Extensions.PrepExtensions();
         try
         {
             Logs.Init("Parsing command line...");
@@ -132,6 +137,9 @@ public class Program
             SettingsFilePath = GetCommandLineFlag("settings_file", $"{DataDir}/Settings.fds");
             LoadSettingsFile();
             RebuildDataDir();
+            TempDir = Path.GetFullPath($"{DataDir}/tmp/{Environment.ProcessId}");
+            Directory.CreateDirectory(TempDir);
+            Environment.SetEnvironmentVariable("TMPDIR", TempDir);
             // TODO: Legacy format patch from Alpha 0.5! Remove this before 1.0.
             if (ServerSettings.DefaultUser.FileFormat.ImageFormat == "jpg")
             {
@@ -179,6 +187,7 @@ public class Program
         Logs.Init($"Running on OS: {RuntimeInformation.OSDescription}");
         Logs.StartLogSaving();
         timer.Check("Initial settings load");
+        Extensions.PrepExtensions().Wait();
         if (ServerSettings.Maintenance.CheckForUpdates)
         {
             waitFor.Add(Utilities.RunCheckedTask(async () =>
@@ -544,6 +553,15 @@ public class Program
         Extensions.Extensions.Clear();
         Logs.Verbose("Shutdown image metadata tracker...");
         OutputMetadataTracker.Shutdown();
+        Logs.Verbose("Clear temp folder...");
+        try
+        {
+            Directory.Delete(TempDir, true);
+        }
+        catch (Exception ex)
+        {
+            Logs.Warning($"Failed to clear temp folder: {ex.ReadableString()}");
+        }
         Logs.Info("All core shutdowns complete.");
         if (Logs.LogSaveThread is not null)
         {
@@ -678,6 +696,10 @@ public class Program
             "prod" or "production" => "Production",
             var mode => throw new SwarmUserErrorException($"aspweb_mode value of '{mode}' is not valid")
         };
+        if (environment == "Development")
+        {
+            IsDevMode = true;
+        }
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", environment);
         string host = GetCommandLineFlag("host", ServerSettings.Network.Host);
         int port = int.Parse(GetCommandLineFlag("port", $"{ServerSettings.Network.Port}"));

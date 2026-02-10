@@ -39,6 +39,7 @@ public static class AdminAPI
         API.RegisterAPICall(AdminListUsers, false, Permissions.ManageUsers);
         API.RegisterAPICall(AdminAddUser, true, Permissions.ManageUsers);
         API.RegisterAPICall(AdminSetUserPassword, true, Permissions.ManageUsers);
+        API.RegisterAPICall(AdminSetUserOAuthEmail, true, Permissions.ManageUsers);
         API.RegisterAPICall(AdminChangeUserSettings, true, Permissions.ManageUsers);
         API.RegisterAPICall(AdminDeleteUser, true, Permissions.ManageUsers);
         API.RegisterAPICall(AdminGetUserInfo, false, Permissions.ManageUsers);
@@ -712,7 +713,7 @@ public static class AdminAPI
         return new JObject() { ["success"] = true, ["result"] = "Update successful. Restarting... (please wait a moment, then refresh the page)" };
     }
 
-    [API.APIDescription("Installs an extension from the known extensions list. Does not trigger a restart. Does signal required rebuild.",
+    [API.APIDescription("Installs an extension from the known extensions list. Does not trigger a restart.",
         """
             "success": true
         """)]
@@ -731,11 +732,10 @@ public static class AdminAPI
             return new JObject() { ["error"] = "Extension already installed." };
         }
         await Utilities.RunGitProcess($"clone {ext.URL}", extensionsFolder);
-        File.WriteAllText("src/bin/must_rebuild", "yes");
         return new JObject() { ["success"] = true };
     }
 
-    [API.APIDescription("Triggers an extension update for an installed extension. Does not trigger a restart. Does signal required rebuild.",
+    [API.APIDescription("Triggers an extension update for an installed extension. Does not trigger a restart.",
         """
             "success": true // or false if no update available
         """)]
@@ -756,11 +756,10 @@ public static class AdminAPI
         {
             return new JObject() { ["success"] = false };
         }
-        File.WriteAllText("src/bin/must_rebuild", "yes");
         return new JObject() { ["success"] = true };
     }
 
-    [API.APIDescription("Triggers an extension uninstallation for an installed extension. Does not trigger a restart. Does signal required rebuild.",
+    [API.APIDescription("Triggers an extension uninstallation for an installed extension. Does not trigger a restart.",
         """
             "success": true
         """)]
@@ -778,7 +777,6 @@ public static class AdminAPI
         {
             return new JObject() { ["error"] = "Extension has invalid path, cannot delete." };
         }
-        File.WriteAllText("src/bin/must_rebuild", "yes");
         try
         {
             FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin, UICancelOption.ThrowException);
@@ -834,8 +832,6 @@ public static class AdminAPI
         return new JObject() { ["users"] = JArray.FromObject(users) };
     }
 
-    public static AsciiMatcher UsernameValidator = new(AsciiMatcher.BothCaseLetters + AsciiMatcher.Digits + "_");
-
     [API.APIDescription("Admin route to create a new user account.",
         """
             "success": true
@@ -846,7 +842,7 @@ public static class AdminAPI
         [API.APIParameter("Initial password for the new user.")] string password,
         [API.APIParameter("Initial role for the new user.")] string role)
     {
-        string cleaned = UsernameValidator.TrimToMatches(name).ToLowerFast();
+        string cleaned = SessionHandler.UsernameValidator.TrimToMatches(name).ToLowerFast();
         if (cleaned.Length < 3)
         {
             return new JObject() { ["error"] = "Username must be at least 3 characters long, A-Z 0-9 only." };
@@ -859,22 +855,10 @@ public static class AdminAPI
         {
             return new JObject() { ["error"] = "Username or password too long." };
         }
-        lock (Program.Sessions.DBLock)
+        User user = Program.Sessions.RegisterUser(cleaned, password, role, true);
+        if (user is null)
         {
-            User existing = Program.Sessions.GetUser(cleaned, false);
-            if (existing is not null)
-            {
-                return new JObject() { ["error"] = "A user by that name already exists." };
-            }
-            User.DatabaseEntry userData = new() { ID = cleaned, RawSettings = "\n" };
-            User user = new(Program.Sessions, userData);
-            user.Settings.Roles = [role];
-            user.Settings.TrySetFieldModified(nameof(User.Settings.Roles), true);
-            user.Data.PasswordHashed = Utilities.HashPassword(cleaned, password);
-            user.Data.IsPasswordSetByAdmin = true;
-            user.BuildRoles();
-            user.Save();
-            Program.Sessions.Users.TryAdd(cleaned, user);
+            return new JObject() { ["error"] = "A user by that name already exists, or registration failed." };
         }
         return new JObject() { ["success"] = true };
     }
@@ -912,6 +896,24 @@ public static class AdminAPI
         user.Data.IsPasswordSetByAdmin = true;
         user.BuildRoles();
         user.Save();
+        return new JObject() { ["success"] = true };
+    }
+
+    [API.APIDescription("Admin route to force-set a user's OAuth email.",
+        """
+            "success": true
+        """)]
+    [API.APINonfinalMark]
+    public static async Task<JObject> AdminSetUserOAuthEmail(Session session,
+        [API.APIParameter("The name of the user.")] string name,
+        [API.APIParameter("The OAuth email to set for the user, or empty string to clear it.")] string email)
+    {
+        User user = Program.Sessions.GetUser(name, false);
+        if (user is null)
+        {
+            return new JObject() { ["error"] = "No user by that name exists." };
+        }
+        user.SetOAuthEmail(email);
         return new JObject() { ["success"] = true };
     }
 
@@ -980,6 +982,7 @@ public static class AdminAPI
             "user_id": "useridhere",
             "password_set_by_admin": true, // false if set by user
             "settings": { ... }, // User settings, same format as GetUserSettings
+            "oauth_email": "", // OAuth email associated with the user, if any
             "max_t2i": 32 // actual value of max t2i simultaneous, calculated from current roles and available backends
         """)]
     [API.APINonfinalMark]
@@ -996,6 +999,7 @@ public static class AdminAPI
             ["user_id"] = user.UserID,
             ["password_set_by_admin"] = user.Data.IsPasswordSetByAdmin,
             ["settings"] = AutoConfigToParamData(user.Settings, false),
+            ["oauth_email"] = user.Data.OAuthEmail,
             ["max_t2i"] = user.CalcMaxT2ISimultaneous
         };
     }
@@ -1067,7 +1071,7 @@ public static class AdminAPI
     public static async Task<JObject> AdminAddRole(Session session,
         [API.APIParameter("The name of the new role.")] string name)
     {
-        string cleaned = UsernameValidator.TrimToMatches(name).ToLowerFast();
+        string cleaned = SessionHandler.UsernameValidator.TrimToMatches(name).ToLowerFast();
         if (cleaned.Length < 3)
         {
             return new JObject() { ["error"] = "Role name must be at least 3 characters long, A-Z 0-9 only." };

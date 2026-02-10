@@ -1,6 +1,6 @@
 # SwarmUI
 
-**SwarmUI v0.9.7 Beta**.
+**SwarmUI v0.9.8 Beta**.
 
 *Formerly known as StableSwarmUI.*
 
@@ -172,7 +172,7 @@ Copyright (c) 2024 Stability AI
 
 The MIT License (MIT)
 
-Copyright (c) 2024-2025 Alex "mcmonkey" Goodwin
+Copyright (c) 2024-2026 Alex "mcmonkey" Goodwin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

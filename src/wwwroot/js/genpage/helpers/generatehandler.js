@@ -180,18 +180,41 @@ class GenerateHandler {
             else {
                 this.gotTrackedImageResult(data.image, data.metadata, `${data.request_id}_${data.batch_index}`, div);
                 let imgElem = div.querySelector('img');
-                this.setImageFor(imgHolder, data.image);
                 let spinner = div.querySelector('.loading-spinner-parent');
+                let progress_bars = div.querySelector('.image-preview-progress-wrapper');
+                let isPreviewSwapToCompleted = imgElem.dataset.previewGrow || progress_bars || spinner;
+                this.setImageFor(imgHolder, data.image);
                 if (spinner) {
                     spinner.remove();
                 }
                 delete imgElem.dataset.previewGrow;
                 div.dataset.metadata = data.metadata;
-                let progress_bars = div.querySelector('.image-preview-progress-wrapper');
+                div.dataset.request_id = data.request_id;
                 if (progress_bars) {
                     progress_bars.remove();
                 }
+                delete div.dataset.is_generating;
                 this.gotProgress(-1, -1, `${data.request_id}_${data.batch_index}`);
+                if (isPreviewSwapToCompleted && div.parentElement) {
+                    if (data.request_id) {
+                        let insertBefore = null;
+                        for (let c of div.parentElement.children) {
+                            if (c.dataset.is_generating == 'true') {
+                                continue;
+                            }
+                            if (c.dataset.request_id == data.request_id) {
+                                insertBefore = c;
+                                break;
+                            }
+                        }
+                        if (insertBefore && insertBefore != div) {
+                            div.parentElement.insertBefore(div, insertBefore);
+                        }
+                    }
+                    else if (div.parentElement.firstElementChild != div) {
+                        div.parentElement.prepend(div);
+                    }
+                }
             }
             if (data.batch_index in images) {
                 images[data.batch_index].image = data.image;

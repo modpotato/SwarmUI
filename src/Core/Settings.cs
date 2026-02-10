@@ -112,6 +112,54 @@ public class Settings : AutoConfiguration
 
         [ConfigComment("Message to add on the login page.\nYou may use (basic!) HTML here.\nIt is recommended to add contact information here, such as a Discord invite code or an email address.")]
         public string LoginNotice = "This is a local instance not yet configured for shared usage. If you're seeing this on the login screen, ask the server owner to fill it in on the Server Configuration page.";
+
+        [ConfigComment("If true, and authorization is enabled, allow logging in to accounts with a simple username/password/combo.")]
+        public bool AllowSimplePasswordLogin = true;
+
+        /// <summary>Settings related to user registration.</summary>
+        public class RegistrationData : AutoConfiguration
+        {
+            [ConfigComment("If true, allow new users to register accounts on this SwarmUI instance.\nYou must also enable at least one specific registration method.")]
+            public bool AllowRegistration = false;
+
+            [ConfigComment("If true, and AllowRegistration is true, allow registering accounts with a simple username/password/combo.")]
+            public bool SimplePasswordRegistration = false;
+
+            [ConfigComment("If true, and AllowRegistration is true, allow registering accounts via OAuth2 (eg Google login).\nYou must configure OAuth providers in the OAuth section.")]
+            public bool OAuthRegistration = false;
+
+            [ConfigComment("If registration is enabled, what role to assign to new users when they register.")]
+            public string NewUserDefaultRole = "user";
+
+            [ConfigComment("Message to add on the Register page.\nYou may use (basic!) HTML here.\nIt is recommended to add contact information here, such as a Discord invite code or an email address.")]
+            public string RegisterNotice = "This is a local instance not yet configured for registration. If you're seeing this on the register screen, ask the server owner to fill it in on the Server Configuration page.";
+        }
+
+        [ConfigComment("Settings related to user registration.")]
+        public RegistrationData Registration = new();
+
+        /// <summary>Settings related to OAuth providers.</summary>
+        public class OAuthData : AutoConfiguration
+        {
+            [ConfigComment("If true, Google OAuth2 is supported for registration and login. Create in the google cloud console as a 'web application'")]
+            public bool GoogleOAuth = false;
+
+            [ConfigComment("If non-empty, a comma separated whitelist of domains that are allowed for OAuth usage, such as an org domain name.")]
+            public string OAuthAllowedDomains = "";
+
+            [ConfigComment("The Client-ID for Google OAuth.")]
+            public string GoogleOAuthClientId = "";
+
+            [ConfigComment("The Client-Secret for Google OAuth.")]
+            [ValueIsSecret]
+            public string GoogleOAuthClientSecret = "";
+
+            [ConfigComment("The public base URL for this Swarm instance, for OAuth to redirect to. For example, 'https://swarm.example.com'.")]
+            public string OAuthReturnURL = "";
+        }
+
+        [ConfigComment("Settings related to OAuth providers.")]
+        public OAuthData OAuth = new();
     }
 
     /// <summary>Settings related to logging.</summary>
@@ -320,6 +368,9 @@ public class Settings : AutoConfiguration
 
         [ConfigComment("If true, always resave models after the downloader utility grabs them.\nThis ensures metadata is fully properly set, but wastes some extra time on file processing.\nIf false, the downloader will leave a stray json next to the model.\nDefaults to false.")]
         public bool DownloaderAlwaysResave = false;
+
+        [ConfigComment("If true, populate trigger phrase from secondary metadata sources, such as 'trained words' and similar keys.\nIf false, only use actual trigger_phrase specifications.\nTurning this off may help if you see a lot of LoRAs with 10,000 spammed keywords on them or similar (this type of bad metadata is common in certain model classes for some reason).")]
+        public bool UseSecondaryTriggerPhraseSources = true;
     }
 
     /// <summary>Settings related to image/model metadata.</summary>
@@ -342,6 +393,9 @@ public class Settings : AutoConfiguration
 
         [ConfigComment("How many kilobytes of blank spacer to include in model headers.\nThis allows for future expansion of metadata without rewriting the entire model file.\nDefaults to 64 KiB.\nThe average header length of a standard model is already between several hundred kilobytes to a few megabytes,\nso 64 KiB is not a major increase in space but is enough to fit major metadata changes including eg adding a small jpeg thumbnail.")]
         public int ModelMetadataSpacerKilobytes = 64;
+
+        [ConfigComment("Special developmental debug tool: if true, always recheck model class when rescanning models.\nThis ignores any saved architecture in the modelspec header.\nThis is quite performance wasteful, and will undo user choices.")]
+        public bool DebugAlwaysRecheckClass = false;
     }
 
     /// <summary>Settings per-user.</summary>
@@ -646,8 +700,12 @@ Guidelines:
             [SettingsOptions(Impl = typeof(AudioImpl))]
             public string CompletionSound = "";
 
-            [ConfigComment($"If any sound effects are enabled, this is the volume they will play at.\n0 means silent, 1 means max volume, 0.5 means half volume.")]
+            [ConfigComment($"For system sound effects such as CompletionSound, this is the volume they will play at.\n0 means silent, 1 means max volume, 0.5 means half volume.")]
             public double Volume = 0.5;
+
+            [ConfigComment("When a video is played, what should be done with the audio?")]
+            [ManualSettingsOptions(Impl = null, Vals = ["last", "play", "silent"], ManualNames = ["Remember Last", "Autoplay", "Default to Silent"])]
+            public string VideoAudioBehavior = "last";
         }
 
         [ConfigComment("Settings related to audio.")]

@@ -1,22 +1,27 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+
 using FreneticUtilities.FreneticExtensions;
 using FreneticUtilities.FreneticToolkit;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
 using SwarmUI.Text2Image;
+using SwarmUI.Media;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
-using System.IO;
 using System.Net.WebSockets;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Drawing.Processing;
+
 using static SwarmUI.Builtin_GridGeneratorExtension.GridGenCore;
 using Image = SwarmUI.Utils.Image;
 using ISImage = SixLabors.ImageSharp.Image;
 using ISImageRGBA = SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>;
-using SwarmUI.Media;
 
 namespace SwarmUI.Builtin_GridGeneratorExtension;
 
@@ -28,6 +33,15 @@ public class GridGeneratorExtension : Extension
     public static PermInfo PermGenerateGrids = Permissions.Register(new("gridgen_generate_grids", "[Grid Generator] Generate Grids", "Allows the user to generate grids with the Grid Generator tool.", PermissionDefault.USER, Permissions.GroupUser));
     public static PermInfo PermReadGrids = Permissions.Register(new("gridgen_read_grids", "[Grid Generator] Read Grids", "Allows the user to read their list of saved grids.", PermissionDefault.USER, Permissions.GroupUser));
     public static PermInfo PermSaveGrids = Permissions.Register(new("gridgen_save_grids", "[Grid Generator] Save Grids", "Allows the user to save new custom grids to their list of saved grids.", PermissionDefault.USER, Permissions.GroupUser));
+
+    /// <summary>Set of parameter IDs that should be comma-stackable in multiple grid axes.</summary>
+    public static Dictionary<string, T2IParamType> CommaStackableParameters = [];
+
+    /// <summary>Marks a parameter type as being stackable with comma separation in multiple grid axes.</summary>
+    public static void MakeStackable(T2IParamType type)
+    {
+        CommaStackableParameters[type.ID] = type;
+    }
 
     public override void OnPreInit()
     {
@@ -44,13 +58,13 @@ public class GridGeneratorExtension : Extension
                     return list;
                 }
                 string first = list[0];
-                if (first.StartsWith("SKIP:"))
+                if (first.TrimStart().StartsWith("SKIP:"))
                 {
                     first = first["SKIP:".Length..].Trim();
                 }
                 return [.. list.Select(v =>
                 {
-                    bool skip = v.StartsWith("SKIP:");
+                    bool skip = v.TrimStart().StartsWith("SKIP:");
                     if (skip)
                     {
                         v = v["SKIP:".Length..].Trim();
@@ -88,6 +102,11 @@ public class GridGeneratorExtension : Extension
             else if (cleaned == PromptAddParameter.Type.ID)
             {
                 (call.LocalData as GridCallData).Additions.Add(val);
+                return true;
+            }
+            else if (CommaStackableParameters.TryGetValue(cleaned, out T2IParamType type))
+            {
+                (call.LocalData as GridCallData).CommaStackable.GetOrCreate(type, () => []).Add(val);
                 return true;
             }
             else if (cleaned == "width" || cleaned == "outwidth")
@@ -129,6 +148,19 @@ public class GridGeneratorExtension : Extension
             {
                 string prompt = param.InternalSet.Get(T2IParamTypes.Prompt, "") + " " + data.Additions.JoinString(" ");
                 param.InternalSet.Set(T2IParamTypes.Prompt, prompt.Trim());
+            }
+            foreach ((T2IParamType key, List<string> vals) in data.CommaStackable)
+            {
+                string joined = vals.JoinString(",");
+                if (param.TryGetRaw(key, out object existing))
+                {
+                    if (existing is List<string> strs)
+                    {
+                        existing = strs.JoinString(",");
+                    }
+                    joined = $"{existing},{joined}";
+                }
+                param.Set(key, joined);
             }
         };
         GridRunnerPreRunHook = (runner) =>
@@ -264,6 +296,11 @@ public class GridGeneratorExtension : Extension
         API.RegisterAPICall(GridGenDeleteData, true, PermSaveGrids);
         API.RegisterAPICall(GridGenGetData, false, PermReadGrids);
         API.RegisterAPICall(GridGenListData, false, PermReadGrids);
+        MakeStackable(PresetsParameter.Type);
+        MakeStackable(T2IParamTypes.Loras.Type);
+        MakeStackable(T2IParamTypes.LoraWeights.Type);
+        MakeStackable(T2IParamTypes.LoraTencWeights.Type);
+        MakeStackable(T2IParamTypes.LoraSectionConfinement.Type);
     }
 
     public async Task<JObject> GridGenSaveData(Session session, string gridName, bool isPublic, JObject rawData)
@@ -325,6 +362,8 @@ public class GridGeneratorExtension : Extension
         public List<string> Replacements = [];
 
         public List<string> Additions = [];
+
+        public Dictionary<T2IParamType, List<string>> CommaStackable = [];
     }
 
     public class SwarmUIGridData
@@ -575,10 +614,12 @@ public class GridGeneratorExtension : Extension
                 Image outImg = new(gridImg);
                 int batchId = (xAxis.Count * yAxis.Count * y2Axis.Count) + 1;
                 Logs.Verbose("Apply metadata...");
-                (Task<MediaFile> imgTask, string metadata) = session.ApplyMetadata(outImg, grid.InitialParams, batchId);
+                T2IParamInput initialParams = grid.InitialParams.Clone();
+                initialParams.NoUnusedParams = true;
+                (Task<MediaFile> imgTask, string metadata) = session.ApplyMetadata(outImg, initialParams, batchId);
                 T2IEngine.ImageOutput imageOut = new() { File = outImg, ActualFileTask = imgTask };
                 Logs.Verbose("Metadata applied, save to file...");
-                (string url, string filePath) = grid.InitialParams.Get(T2IParamTypes.DoNotSave, false) ? (outImg.AsDataString(), null) : data.Session.SaveImage(imageOut, batchId, grid.InitialParams, metadata);
+                (string url, string filePath) = initialParams.Get(T2IParamTypes.DoNotSave, false) ? (outImg.AsDataString(), null) : data.Session.SaveImage(imageOut, batchId, initialParams, metadata);
                 if (url == "ERROR")
                 {
                     data.ErrorOut = new JObject() { ["error"] = $"Server failed to save an image." };

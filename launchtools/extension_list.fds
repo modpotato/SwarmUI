@@ -42,6 +42,7 @@ WaifuDiffusionV:
     - parameters
     - nodes
 
+# (ComfyDeployBackend: deprecated as ComfyDeploy shut down)
 ComfyDeployBackend:
     author: mcmonkey
     description: Adds a ComfyDeploy ( https://www.comfydeploy.com/ ) backend.
@@ -50,9 +51,10 @@ ComfyDeployBackend:
     tags:
     - paid
     - backend
+    - hidden
 
 MagicPrompt:
-    author: Hartsy AI
+    author: Hartsy
     description: Provides LLM (language model) usage inside SwarmUI to enhance your prompts.
     url: https://github.com/HartsyAI/SwarmUI-MagicPromptExtension
     license: MIT
@@ -61,13 +63,22 @@ MagicPrompt:
     - ui
 
 UniversalTab:
-    author: Hartsy AI
+    author: Hartsy
     description: Lets you embed iframes of other webservices into subtabs in SwarmUI.
     url: https://github.com/HartsyAI/SwarmUI-UniversalTabExtension
     license: MIT
     tags:
     - tabs
     - ui
+
+SDCppBackend:
+    author: Hartsy
+    description: Experimental approach to add a backend powered by an external stable-diffusion.cpp executable. Non-compatible with general use.
+    url: https://github.com/HartsyAI/SwarmUI-SD.cpp-Backend
+    license: MIT
+    tags:
+    - backend
+    - beta
 
 WildcardImporter:
     author: spoomples+bman654
@@ -202,6 +213,15 @@ SeedVR2Upscaler:
     author: Rasmus
     description: Adds SeedVR2 AI upscaler with auto VRAM detection, quality presets, and 2-step upscaling for reduced artifacts.
     url: https://github.com/rlerdorf/SwarmUI-SeedVR2Upscaler
+    license: MIT
+    tags:
+    - parameters
+    - nodes
+
+Base2Edit:
+    author: Juan Treminio
+    description: Edit an image in the refiner stage (with Edit models like Flux2), allowing you to generate and edit in a single generation.
+    url: https://github.com/jtreminio/SwarmUI-Base2Edit
     license: MIT
     tags:
     - parameters

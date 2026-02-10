@@ -506,40 +506,43 @@ public class T2IModelHandler
                         altDescription += descTok.Value<string>() + "\n";
                     }
                 }
-                foreach (string wordsKey in AltMetadataTriggerWordsKeys)
+                if (Program.ServerSettings.Paths.UseSecondaryTriggerPhraseSources)
                 {
-                    static string[] procWordsFrom(JToken tok)
+                    foreach (string wordsKey in AltMetadataTriggerWordsKeys)
                     {
-                        if (tok.Type == JTokenType.Array)
+                        static string[] procWordsFrom(JToken tok)
                         {
-                            return tok.ToObject<string[]>();
-                        }
-                        else if (tok is JObject jobj)
-                        {
-                            IEnumerable<string[]> wordSets = jobj.Properties().Select(p => p.Value is JObject subData ? procWordsFrom(subData) : [p.Name]);
-                            return [.. wordSets.Flatten()];
-                        }
-                        else if (tok.Type == JTokenType.String)
-                        {
-                            string trainedWordsTok = tok.Value<string>();
-                            if (trainedWordsTok.StartsWithFast('{') && trainedWordsTok.EndsWithFast('}'))
+                            if (tok.Type == JTokenType.Array)
                             {
-                                try
-                                {
-                                    return procWordsFrom(trainedWordsTok.ParseToJson());
-                                }
-                                catch (Exception) { } // Ignored
+                                return tok.ToObject<string[]>();
                             }
-                            return trainedWordsTok.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                            else if (tok is JObject jobj)
+                            {
+                                IEnumerable<string[]> wordSets = jobj.Properties().Select(p => p.Value is JObject subData ? procWordsFrom(subData) : [p.Name]);
+                                return [.. wordSets.Flatten()];
+                            }
+                            else if (tok.Type == JTokenType.String)
+                            {
+                                string trainedWordsTok = tok.Value<string>();
+                                if (trainedWordsTok.StartsWithFast('{') && trainedWordsTok.EndsWithFast('}'))
+                                {
+                                    try
+                                    {
+                                        return procWordsFrom(trainedWordsTok.ParseToJson());
+                                    }
+                                    catch (Exception) { } // Ignored
+                                }
+                                return trainedWordsTok.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                            }
+                            return null;
                         }
-                        return null;
-                    }
-                    if (triggerPhrases.IsEmpty() && altMetadata.TryGetValue(wordsKey, out JToken wordsTok) && wordsTok.Type != JTokenType.Null)
-                    {
-                        string[] trainedWords = procWordsFrom(wordsTok);
-                        if (trainedWords is not null && trainedWords.Length > 0)
+                        if (triggerPhrases.IsEmpty() && altMetadata.TryGetValue(wordsKey, out JToken wordsTok) && wordsTok.Type != JTokenType.Null)
                         {
-                            triggerPhrases.UnionWith(trainedWords);
+                            string[] trainedWords = procWordsFrom(wordsTok);
+                            if (trainedWords is not null && trainedWords.Length > 0)
+                            {
+                                triggerPhrases.UnionWith(trainedWords);
+                            }
                         }
                     }
                 }
@@ -606,7 +609,7 @@ public class T2IModelHandler
                 Logs.Debug($"Model {model.Name} has special format '{specialFormat}'");
             }
             string img = metaHeader?.Value<string>("modelspec.preview_image") ?? metaHeader?.Value<string>("modelspec.thumbnail") ?? metaHeader?.Value<string>("thumbnail") ?? metaHeader?.Value<string>("preview_image");
-            if (img is not null && !img.StartsWith("data:image/"))
+            if (img is not null && !img.StartsWith("data:image/") && img != "imgs/model_placeholder.jpg")
             {
                 Logs.Warning($"Ignoring image in metadata of {model.Name} '{img}'");
                 img = null;
@@ -785,6 +788,10 @@ public class T2IModelHandler
         });
         Parallel.ForEach(Directory.EnumerateFiles(actualFolder), file =>
         {
+            if (Program.GlobalProgramCancel.IsCancellationRequested)
+            {
+                return;
+            }
             string fixedFileName = file.Replace('\\', '/');
             string fn = fixedFileName.AfterLast('/');
             if (fn.StartsWithFast('.'))

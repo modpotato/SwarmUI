@@ -7,6 +7,7 @@ class ModelCompatClass {
         this.isText2Video = data.is_text2video;
         this.isImage2Video = data.is_image2video;
         this.lorasTargetTextEnc = data.loras_target_text_enc;
+        this.isAudioModel = data.is_audio_model;
     }
 }
 
@@ -292,6 +293,36 @@ function editModel(model, browser) {
     else {
         run();
     }
+}
+
+function denseStringifyHeaderJson(header) {
+    let output = '{';
+    for (let key in header) {
+        let value = header[key];
+        // if keys within the sub-object are exactly 'dtype', 'shape', 'data_offsets', then special render.
+        if (typeof value == 'object' && Object.keys(value).length == 3 && value.dtype && value.shape && value.data_offsets) {
+            output += `\n    "${key}": "dtype": "${value.dtype}", "shape": ${JSON.stringify(value.shape)}, "data_offsets": ${JSON.stringify(value.data_offsets)},`;
+        }
+        else {
+            let procd = JSON.stringify({ [key]: value }, null, 4);
+            output += `\n${procd.substring(2, procd.length - 2)},`;
+        }
+    }
+    output += '\n}\n\n\n';
+    return output;
+}
+
+function viewRawHeader(model, browser) {
+    if (model == null) {
+        return;
+    }
+    genericRequest('GetModelHeaders', { 'model': model.name, 'subtype': browser.subType }, data => {
+        let header = data.headers;
+        let headerText = denseStringifyHeaderJson(header);
+        getRequiredElementById('view_raw_header_modal_content').innerText = headerText;
+        getRequiredElementById('view_raw_header_modal_title').innerText = model.name;
+        $('#view_raw_header_modal').modal('show');
+    });
 }
 
 function edit_model_load_civitai() {
@@ -701,9 +732,6 @@ class ModelBrowserWrapper {
                 } });
             }
             let raw = model.data.raw;
-            if (raw.length > 512) {
-                raw = raw.substring(0, 512) + '...';
-            }
             detail_list.push(escapeHtml(raw).replaceAll('\n', '').replaceAll('<br>', ', '));
             description = `<span class="wildcard_title">${escapeHtml(name)}</span><br>${escapeHtml(raw)}`;
             let match = wildcardHelpers.matchWildcard(this.promptBox.value, model.data.name);
@@ -728,8 +756,11 @@ class ModelBrowserWrapper {
                 return `<b>${label}:</b> <span>${content}</span><br>`;
             };
             let getOptLine = (label, val) => val ? getLine(label, val) : '';
+            let helperData = modelsHelpers.getDataFor(this.subType, model.data.name);
             if (this.subType == 'LoRA' || this.subType == 'Stable-Diffusion') {
-                interject += `${getLine("Resolution", `${model.data.standard_width}x${model.data.standard_height}`)}`;
+                if (!helperData?.modelClass?.compatClass?.isAudioModel) {
+                    interject += `${getLine("Resolution", `${model.data.standard_width}x${model.data.standard_height}`)}`;
+                }
             }
             if (!model.data.local) {
                 interject += `<b>(This model is only available on some backends.)</b><br>`;
@@ -749,6 +780,7 @@ class ModelBrowserWrapper {
             detail_list.push(cleanForDetails(model.data.title), cleanForDetails(model.data.class), cleanForDetails(model.data.usage_hint ?? model.data.trigger_phrase), cleanForDetails(model.data.description));
             if (model.data.local && permissions.hasPermission('edit_model_metadata')) {
                 buttons.push({ label: 'Edit Metadata', onclick: () => editModel(model.data, this) });
+                buttons.push({ label: 'View Raw Header', onclick: () => viewRawHeader(model.data, this) });
             }
             if (model.data.local && permissions.hasPermission('delete_models')) {
                 buttons.push({ label: 'Delete Model', onclick: () => deleteModel(model.data, this) });

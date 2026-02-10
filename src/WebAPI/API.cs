@@ -18,6 +18,9 @@ public class API
     /// <summary>Internal mapping of API handlers, key is API path name, value is an .</summary>
     public static Dictionary<string, APICall> APIHandlers = [];
 
+    /// <summary>All-lowercase short labels of API routes that have no session requirement, eg 'login'. Only for very special cases.</summary>
+    public static HashSet<string> SessionlessRoutes = ["login", "getnewsession", "registerbasic", "registeroauth"];
+
     /// <summary>Register a new API call handler.</summary>
     public static void RegisterAPICall(APICall call)
     {
@@ -27,7 +30,7 @@ public class API
     /// <summary>Register a new API call handler.</summary>
     public static void RegisterAPICall(Delegate method, bool isUserUpdate = false, PermInfo permission = null)
     {
-        if (permission is null && method.Method.Name != "GetNewSession" && method.Method.Name != "Login")
+        if (permission is null && !SessionlessRoutes.Contains(method.Method.Name.ToLowerFast()))
         {
             Logs.Error($"Warning: API method '{method.Method.Name}' registered without permission! (legacy call, or debugging? Make sure it has a permission added before committing to public access)");
         }
@@ -95,7 +98,7 @@ public class API
                 return;
             }
             string path = context.Request.Path.ToString().ToLowerFast().After("/api/");
-            if (path != "getnewsession" && path != "login")
+            if (!SessionlessRoutes.Contains(path))
             {
                 if (!input.TryGetValue("session_id", out JToken session_id))
                 {
