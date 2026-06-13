@@ -181,6 +181,8 @@ public class SessionHandler
 
         public string OriginUserAgent { get; set; }
 
+        public long CreatedUnixTime { get; set; }
+
         public long LastActiveUnixTime { get; set; }
 
         public string ValidationHash { get; set; }
@@ -310,7 +312,14 @@ public class SessionHandler
         GenericSharedUser = GetUser("__shared");
         Utilities.RunCheckedTask(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(10), Program.GlobalProgramCancel);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), Program.GlobalProgramCancel);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
             CleanOldSessions();
         });
     }

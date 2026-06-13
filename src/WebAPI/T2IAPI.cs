@@ -129,7 +129,10 @@ public static class T2IAPI
         tasks.TryAdd(handle, handle);
         while (Volatile.Read(ref retain) || tasks.Any())
         {
-            await Task.WhenAny(tasks.Keys.ToList());
+            if (tasks.Any())
+            {
+                await Task.WhenAny(tasks.Keys.ToList());
+            }
             foreach (Task t in tasks.Keys.Where(t => t.IsCompleted).ToList())
             {
                 tasks.TryRemove(t, out _);
@@ -493,6 +496,7 @@ public static class T2IAPI
         [API.APIParameter("Data URL of the image to save.")] string image,
         [API.APIParameter("Raw mapping of input should contain general T2I parameters (see listing on Generate tab of main interface) to values, eg `{ \"prompt\": \"a photo of a cat\", \"model\": \"OfficialStableDiffusion/sd_xl_base_1.0\", \"steps\": 20, ... }`. Note that this is the root raw map, ie all params go on the same level as `images`, `session_id`, etc.")] JObject rawInput)
     {
+        // TODO: Recognize audio/video inputs properly
         ImageFile img = ImageFile.FromDataString(image);
         T2IParamInput user_input;
         rawInput.Remove("image");

@@ -51,7 +51,7 @@ public static class UtilAPI
         }
         catch (SwarmReadableErrorException ex)
         {
-            return (new JObject() { ["error"] = ex.Message },  null);
+            return (new JObject() { ["error"] = ex.Message }, null);
         }
     }
 

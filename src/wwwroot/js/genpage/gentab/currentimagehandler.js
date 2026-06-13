@@ -11,7 +11,7 @@ class ImageFullViewHelper {
             if (e.target.tagName == 'BODY') {
                 return; // it's impossible on the genpage to actually click body, so this indicates a bugged click, so ignore it
             }
-            if (!this.noClose && this.modal.style.display == 'block' && !findParentOfClass(e.target, 'imageview_popup_modal_undertext') && !findParentOfClass(e.target, 'video-controls') && !findParentOfClass(e.target, 'image_fullview_extra_buttons')) {
+            if (!this.noClose && this.modal.style.display == 'block' && !findParentOfClass(e.target, 'imageview_popup_modal_undertext') && !findParentOfClass(e.target, 'video-controls') && !findParentOfClass(e.target, 'audio-controls') && !findParentOfClass(e.target, 'audio-waveform-wrap') && !findParentOfClass(e.target, 'image_fullview_extra_buttons')) {
                 this.close();
                 e.preventDefault();
                 e.stopPropagation();
@@ -45,6 +45,9 @@ class ImageFullViewHelper {
         if (container.classList.contains('video-container')) {
             return container.querySelector('video');
         }
+        if (container.classList.contains('audio-container')) {
+            return container.querySelector('audio');
+        }
         return container;
     }
 
@@ -67,7 +70,7 @@ class ImageFullViewHelper {
         if (e.button == 2) { // right-click
             return;
         }
-        if (!findParentOfClass(e.target, 'imageview_modal_imagewrap') || findParentOfClass(e.target, 'video-controls') || e.ctrlKey || e.shiftKey) {
+        if (!findParentOfClass(e.target, 'imageview_modal_imagewrap') || findParentOfClass(e.target, 'video-controls') || findParentOfClass(e.target, 'audio-controls') || findParentOfClass(e.target, 'audio-waveform-wrap') || e.ctrlKey || e.shiftKey) {
             return;
         }
         this.lastMouseX = e.clientX;
@@ -241,15 +244,14 @@ class ImageFullViewHelper {
         this.currentBatchId = batchId;
         this.updateCounter();
         let wasAlreadyOpen = this.isOpen();
-        let isVideo = isVideoExt(src);
-        let isAudio = isAudioExt(src);
+        let mediaType = getMediaType(src);
         let encodedSrc = escapeHtmlForUrl(src);
         let imgHtml = `<img class="imageview_popup_modal_img" id="imageview_popup_modal_img" style="cursor:grab;max-width:100%;object-fit:contain;" src="${encodedSrc}" onload="imageFullView.onImgLoad()">`;
-        if (isVideo) {
-            imgHtml = `<div class="video-container imageview_popup_modal_img" id="imageview_popup_modal_img"><video class="imageview_popup_modal_img" style="cursor:grab;max-width:100%;object-fit:contain;" autoplay loop muted onload="imageFullView.onImgLoad()"><source src="${encodedSrc}" type="${isVideo}"></video></div>`;
+        if (mediaType == 'video') {
+            imgHtml = `<div class="video-container imageview_popup_modal_img" id="imageview_popup_modal_img"><video class="imageview_popup_modal_img" style="cursor:grab;max-width:100%;object-fit:contain;" autoplay loop muted onload="imageFullView.onImgLoad()"><source src="${encodedSrc}" type="${isVideoExt(src)}"></video></div>`;
         }
-        else if (isAudio) {
-            imgHtml = `<audio class="imageview_popup_modal_img" id="imageview_popup_modal_img" style="cursor:grab;max-width:100%;object-fit:contain;" controls src="${encodedSrc}" onload="imageFullView.onImgLoad()"></audio>`;
+        else if (mediaType == 'audio') {
+            imgHtml = `<div class="audio-container imageview_popup_modal_img" id="imageview_popup_modal_img" style="cursor:grab;max-width:100%;"><audio class="imageview_popup_modal_img" preload="metadata" src="${encodedSrc}" onloadedmetadata="imageFullView.onImgLoad()"></audio></div>`;
         }
         this.content.innerHTML = `
         <div class="modal-dialog" style="display:none">(click outside image to close)</div>
@@ -264,6 +266,9 @@ class ImageFullViewHelper {
         </div>`;
         let subDiv = this.content.querySelector('.image_fullview_extra_buttons');
         for (let added of buttonsForImage(getImageFullSrc(src), src, metadata)) {
+            if (added.multi_only || (added.media_types && !added.media_types.includes(mediaType))) {
+                continue;
+            }
             if (added.href) {
                 if (added.is_download) {
                     subDiv.appendChild(createDiv(null, 'inline-block', `<a class="text_button basic-button translate" href="${added.href}" title="${added.title}" download>${added.label}</a>`));
@@ -284,10 +289,13 @@ class ImageFullViewHelper {
             this.toggleMetadataVisibility(true);
         }
         this.modalJq.modal('show');
-        if (isVideo) {
+        if (mediaType == 'video') {
             new VideoControls(this.getImg());
         }
-        if (isVideo || isAudio) {
+        else if (mediaType == 'audio') {
+            new AudioControls(this.getImg());
+        }
+        if (mediaType == 'video' || mediaType == 'audio') {
             let curImgElem = currentImageHelper.getCurrentImage();
             if (curImgElem) {
                 if (curImgElem.tagName == 'VIDEO' || curImgElem.tagName == 'AUDIO') {
@@ -370,6 +378,9 @@ class CurrentImageHelper {
             return null;
         }
         if (img.tagName == 'VIDEO' && img.parentElement.classList.contains('video-container')) {
+            return img.parentElement;
+        }
+        if (img.tagName == 'AUDIO' && img.parentElement.classList.contains('audio-container')) {
             return img.parentElement;
         }
         return img;
@@ -480,6 +491,13 @@ function copy_current_image_params() {
     let metadataFull = JSON.parse(readable);
     let metadata = metadataFull.sui_image_params;
     let extra = metadataFull.sui_extra_data || metadata;
+    for (let param of Object.keys(metadata)) {
+        let remapId = window.parameter_remaps[param];
+        if (remapId) {
+            metadata[remapId] = metadata[param];
+            delete metadata[param];
+        }
+    }
     if ('original_prompt' in extra) {
         metadata.prompt = extra.original_prompt;
     }
@@ -582,7 +600,10 @@ function shiftToNextImagePreview(next = true, expand = false, isArrows = false) 
     doCycle = doCycle == 'true' || (isArrows && doCycle == 'only_arrows');
     let expandedState = imageFullView.isOpen() ? imageFullView.copyState() : {};
     if (curImgElem.dataset.batch_id == 'history') {
-        let divs = [...lastHistoryImageDiv.parentElement.children].filter(div => div.classList.contains('image-block'));
+        if (lastHistoryImageDiv == null || lastHistoryImageDiv.parentElement == null) {
+            return false;
+        }
+        let divs = [...lastHistoryImageDiv.parentElement.children].filter(div => div.classList.contains('image-block') || div.classList.contains('model-block'));
         let index = divs.findIndex(div => div == lastHistoryImageDiv);
         if (index == -1) {
             console.log(`Image preview shift failed as current image ${lastHistoryImage} is not in history area`);
@@ -604,20 +625,31 @@ function shiftToNextImagePreview(next = true, expand = false, isArrows = false) 
         if (newIndex == index) {
             return false;
         }
-        divs[newIndex].querySelector('img').click();
+        let target = divs[newIndex].querySelector('.image-block-img-inner');
+        if (!target) {
+            return false;
+        }
+        target.click();
         if (expand) {
-            divs[newIndex].querySelector('img').click();
+            target.click();
             imageFullView.showImage(currentImgSrc, currentMetadataVal, 'history');
             imageFullView.pasteState(expandedState);
         }
         return true;
     }
     let batch_area = getRequiredElementById('current_image_batch');
-    let imgs = [...batch_area.getElementsByTagName('img')].filter(i => findParentOfClass(i, 'image-block-placeholder') == null);
-    let index = imgs.findIndex(img => img.src == curImgElem.src);
+    let imgs = [...batch_area.getElementsByClassName('image-block-img-inner')].filter(i => findParentOfClass(i, 'image-block-placeholder') == null);
+    function getSrc(elem) {
+        if (elem.tagName == 'VIDEO') {
+            return elem.querySelector('source').src;
+        }
+        return elem.src;
+    }
+    let curImgSrc = getSrc(curImgElem);
+    let index = imgs.findIndex(img => getSrc(img) == curImgSrc);
     if (index == -1) {
-        let cleanSrc = (img) => img.src.length > 100 ? img.src.substring(0, 100) + '...' : img.src;
-        console.log(`Image preview shift failed as current image ${cleanSrc(curImgElem)} is not in batch area set ${imgs.map(cleanSrc)}`);
+        let cleanSrc = (src) => src.length > 200 ? src.substring(0, 200) + '...' : src;
+        console.log(`Image preview shift failed as current image ${cleanSrc(curImgSrc)} is not in batch area set [${imgs.map(getSrc).map(cleanSrc).join(', ')}]`);
         return false;
     }
     let newIndex = index + (next ? 1 : -1);
@@ -679,6 +711,7 @@ function alignImageDataFormat() {
     let curImg = getRequiredElementById('current_image');
     let img = currentImageHelper.getCurrentImage();
     if (!img) {
+        curImg.classList.remove('current_image_sideblock');
         return;
     }
     let curImgContainer = currentImageHelper.getCurrentImageContainer();
@@ -694,6 +727,7 @@ function alignImageDataFormat() {
     curImgContainer.style.maxWidth = `calc(min(100%, ${width}px))`;
     if ((remainingWidth > 30 * 16 && format == 'auto') || format == 'side') {
         curImg.classList.remove('current_image_small');
+        curImg.classList.add('current_image_sideblock');
         extrasWrapper.style.display = 'inline-block';
         extrasWrapper.classList.add('extras-wrapper-sideblock');
         curImgContainer.style.maxHeight = `calc(max(15rem, 100%))`;
@@ -709,6 +743,7 @@ function alignImageDataFormat() {
     }
     else {
         curImg.classList.add('current_image_small');
+        curImg.classList.remove('current_image_sideblock');
         extrasWrapper.style.width = '100%';
         extrasWrapper.style.maxWidth = `100%`;
         extrasWrapper.style.display = 'block';
@@ -793,9 +828,8 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         forceShowWelcomeMessage();
         return;
     }
-    let isVideo = isVideoExt(src);
-    let isAudio = isAudioExt(src);
-    if ((smoothAdd || !metadata) && canReparse && !isVideo && !isAudio) {
+    let mediaType = getMediaType(src);
+    if ((smoothAdd || !metadata) && canReparse && mediaType == 'image') {
         let image = new Image();
         image.onload = () => {
             if (!metadata) {
@@ -821,7 +855,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
     let img;
     let isReuse = false;
     let srcTarget;
-    if (isVideo) {
+    if (mediaType == 'video') {
         container = createDiv(null, 'video-container current-image-img');
         curImg.innerHTML = '';
         img = document.createElement('video');
@@ -830,16 +864,17 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         img.autoplay = true;
         let sourceObj = document.createElement('source');
         srcTarget = sourceObj;
-        sourceObj.type = isVideo;
+        sourceObj.type = isVideoExt(src);
         img.appendChild(sourceObj);
         container.appendChild(img);
     }
-    else if (isAudio) {
+    else if (mediaType == 'audio') {
         curImg.innerHTML = '';
+        container = createDiv(null, 'audio-container current-image-img');
         img = document.createElement('audio');
-        img.controls = true;
+        img.preload = 'metadata';
         srcTarget = img;
-        container = img;
+        container.appendChild(img);
     }
     else {
         img = currentImageHelper.getCurrentImage();
@@ -857,11 +892,11 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         container = img;
     }
     function naturalDim() {
-        if (isVideo) {
+        if (mediaType == 'video') {
             return [img.videoWidth, img.videoHeight];
         }
-        else if (isAudio) {
-            return [200, 50];
+        else if (mediaType == 'audio') {
+            return [320, 140];
         }
         else {
             return [img.naturalWidth, img.naturalHeight];
@@ -876,7 +911,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         }
         alignImageDataFormat();
     }
-    if (isVideo || isAudio) {
+    if (mediaType == 'video' || mediaType == 'audio') {
         img.addEventListener('loadeddata', function() {
             if (img) {
                 img.onload();
@@ -895,7 +930,8 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
     let buttons = createDiv(null, 'current-image-buttons');
     let imagePathClean = getImageFullSrc(src);
     let buttonsChoice = getUserSetting('ButtonsUnderMainImages', '');
-    if (buttonsChoice == '') {
+    let isUsingDefaults = buttonsChoice == '';
+    if (isUsingDefaults) {
         buttonsChoice = defaultButtonChoices;
     }
     let buttonDefs = {};
@@ -908,17 +944,20 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         }
         return normalized;
     }
-    function includeButton(name, action, extraClass = '', title = '') {
-        buttonDefs[normalizeButtonKey(name)] = { name, action, extraClass, title };
+    function includeButton(name, action, extraClass = '', title = '', mediaTypes = null) {
+        buttonDefs[normalizeButtonKey(name)] = { name, action, extraClass, title, mediaTypes };
     }
-    function includeLinkButton(name, href, isDownload = false, title = '') {
-        buttonDefs[normalizeButtonKey(name)] = { name, href, is_download: isDownload, title: title };
+    function includeLinkButton(name, href, isDownload = false, title = '', mediaTypes = null) {
+        buttonDefs[normalizeButtonKey(name)] = { name, href, is_download: isDownload, title, mediaTypes };
     }
     function renderButtonsFromDefs() {
         for (let key of buttonsChoiceOrdered) {
             let def = buttonDefs[key];
             if (def) {
                 delete buttonDefs[key];
+                if (def.mediaTypes && !def.mediaTypes.includes(mediaType)) {
+                    continue;
+                }
                 if (def.href) {
                     let link = document.createElement('a');
                     link.className = `basic-button${def.extraClass || ''}`;
@@ -936,6 +975,9 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
             }
         }
         for (let def of Object.values(buttonDefs)) {
+            if (def.mediaTypes && !def.mediaTypes.includes(mediaType)) {
+                continue;
+            }
             if (def.href) {
                 subButtons.push({ key: def.name, href: def.href, is_download: def.is_download, title: def.title });
             }
@@ -949,6 +991,16 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         let key = normalizeButtonKey(name);
         if (key) {
             buttonsChoiceOrdered.push(key);
+        }
+    }
+    if (isUsingDefaults) {
+        for (let reg of registeredMediaButtons) {
+            if (reg.isDefault) {
+                let key = normalizeButtonKey(reg.name);
+                if (key && !buttonsChoiceOrdered.includes(key)) {
+                    buttonsChoiceOrdered.push(key);
+                }
+            }
         }
     }
     let isDataImage = src.startsWith('data:');
@@ -988,7 +1040,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
                 tmpImg.src = img.src;
             }
         }
-    }, '', 'Sets this image as the Init Image parameter input');
+    }, '', 'Sets this image as the Init Image parameter input', ['image', 'video']);
     includeButton('Use As Image Prompt', () => {
         let altPromptRegion = document.getElementById('alt_prompt_region');
         if (!altPromptRegion) {
@@ -1009,7 +1061,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
             });
         };
         tmpImg.src = img.src;
-    }, '', 'Uses this image as an Image Prompt input');
+    }, '', 'Uses this image as an Image Prompt input', ['image']);
     includeButton('Edit Image', () => {
         let initImageGroupToggle = document.getElementById('input_group_content_initimage_toggle');
         if (initImageGroupToggle) {
@@ -1036,7 +1088,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
         }
         imageEditor.setBaseImage(img);
         imageEditor.activate();
-    }, '', 'Opens an Image Editor for this image');
+    }, '', 'Opens an Image Editor for this image', ['image']);
     includeButton('Upscale 2x', () => {
         toDataURL(img.src, (url => {
             let [width, height] = naturalDim();
@@ -1049,7 +1101,7 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
             };
             mainGenHandler.doGenerate(input_overrides, { 'initimagecreativity': 0.4 });
         }));
-    }, '', 'Runs an instant generation with this image as the input and scale doubled');
+    }, '', 'Runs an instant generation with this image as the input and scale doubled', ['image', 'video']);
     includeButton('Refine Image', () => {
         toDataURL(img.src, (url => {
             let input_overrides = {
@@ -1106,15 +1158,15 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
             imageHistoryBrowser.navigate(folder);
         }, '', 'Jumps the History browser to where this file is at.');
     }
-    for (let added of buttonsForImage(imagePathClean, src, metadata)) {
-        if (added.label == 'Star' || added.label == 'Unstar') {
+    for (let added of buttonsForImage(imagePathClean, src, metadata, true)) {
+        if (added.label == 'Star' || added.label == 'Unstar' || added.multi_only) {
             continue;
         }
         if (added.href) {
             includeLinkButton(added.label, added.href, added.is_download, added.title);
         }
         else {
-            includeButton(added.label, added.onclick, '', added.title);
+            includeButton(added.label, added.onclick, '', added.title, added.media_types);
         }
     }
     renderButtonsFromDefs();
@@ -1129,8 +1181,11 @@ function setCurrentImage(src, metadata = '', batchId = '', previewGrow = false, 
     if (!isReuse) {
         curImg.appendChild(container);
         curImg.appendChild(extrasWrapper);
-        if (isVideo) {
+        if (mediaType == 'video') {
             new VideoControls(img);
+        }
+        else if (mediaType == 'audio') {
+            new AudioControls(img);
         }
     }
     highlightSelectedImage(src);
@@ -1140,12 +1195,7 @@ function highlightSelectedImage(src) {
     let batchContainer = getRequiredElementById('current_image_batch');
     if (batchContainer) {
         for (let i of batchContainer.getElementsByClassName('image-block')) {
-            if (i.dataset.src == src) {
-                i.classList.add('image-block-current');
-            }
-            else {
-                i.classList.remove('image-block-current');
-            }
+            i.classList.toggle('image-block-current', i.dataset.src == src);
         }
     }
     let historyContainer = document.getElementById('imagehistorybrowser-content');
@@ -1155,12 +1205,10 @@ function highlightSelectedImage(src) {
             // History browser images may have data-src (if clicked) or just data-name (if not clicked yet)
             let historyImgSrc = i.dataset.src || i.dataset.name;
             let normalizedHistorySrc = historyImgSrc ? getImageFullSrc(historyImgSrc) : null;
-            if (normalizedHistorySrc && normalizedSrc == normalizedHistorySrc) {
-                i.classList.add('image-block-current');
-            }
-            else {
-                i.classList.remove('image-block-current');
-            }
+            i.classList.toggle('image-block-current', normalizedHistorySrc && normalizedSrc == normalizedHistorySrc);
+        }
+        for (let i of historyContainer.getElementsByClassName('model-block')) {
+            i.classList.toggle('model-selected', i.dataset.src == src);
         }
     }
 }
@@ -1235,6 +1283,7 @@ function appendImage(container, imageSrc, batchId, textPreview, metadata = '', t
         }
     });
     srcTarget.src = imageSrc;
+    img.classList.add('image-block-img-inner');
     div.appendChild(img);
     if (type == 'legacy') {
         let textBlock = createDiv(null, 'image-preview-text');
@@ -1321,7 +1370,801 @@ function imageInputHandler() {
                 }
                 reader.readAsDataURL(file);
             }
+            else if (file.name.endsWith('.json') || file.type == 'application/json') {
+                let reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        let metadata = interpretMetadata(e.target.result);
+                        if (metadata) {
+                            setCurrentImage('imgs/model_placeholder.jpg', metadata, '', false, false, false, true);
+                        }
+                    }
+                    catch (e) {
+                        showError(`Failed to parse JSON metadata: ${e}`);
+                    }
+                }
+                reader.readAsText(file);
+            }
         }
     });
 }
 imageInputHandler();
+
+class ImageCompareHelper {
+    static modeDefinitions = {
+        side: { layout: 'side' },
+        slide_horizontal: { layout: 'slide', axis: 'x' },
+        slide_vertical: { layout: 'slide', axis: 'y' },
+        transparency: { layout: 'transparency' },
+        single: { layout: 'single' }
+    };
+
+    constructor() {
+        this.zoomRate = 1.1;
+        this.modal = getRequiredElementById('image_compare_modal');
+        this.modalJq = $(this.modal);
+        this.stage = getRequiredElementById('image_compare_stage');
+        document.addEventListener('click', (e) => {
+            if (e.target.tagName == 'BODY') {
+                return;
+            }
+            if (!this.noClose && this.isOpen() && !findParentOfClass(e.target, 'imageview_popup_modal_undertext') && !findParentOfClass(e.target, 'image_compare_metadata')) {
+                this.close();
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            this.noClose = false;
+        }, true);
+        this.modalJq.on('hidden.bs.modal', () => {
+            this.close();
+        });
+        this.modalJq.on('shown.bs.modal', () => {
+            if (this.hasSelection()) {
+                this.applyView();
+            }
+        });
+        this.stage.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+        this.stage.addEventListener('mousedown', this.onMouseDown.bind(this));
+        document.addEventListener('mouseup', this.onGlobalMouseUp.bind(this));
+        document.addEventListener('mousemove', this.onGlobalMouseMove.bind(this));
+        window.addEventListener('resize', this.onWindowResize.bind(this));
+        this.mode = 'side';
+        this.left = null;
+        this.right = null;
+        this.showMetadata = false;
+        this.resetViewportState();
+        this.modeButtonMap = {};
+        for (let button of this.modal.querySelectorAll('[data-compare-mode]')) {
+            let mode = button.dataset.compareMode;
+            button.addEventListener('click', () => this.setMode(mode));
+            this.modeButtonMap[mode] = button;
+        }
+        this.swapButton = getRequiredElementById('image_compare_swap_button');
+        this.swapButton.addEventListener('click', () => this.swapImages());
+        this.metadataToggleButton = getRequiredElementById('image_compare_metadata_toggle_button');
+        this.metadataToggleButton.addEventListener('click', () => this.toggleMetadataVisibility(!this.showMetadata));
+        this.transparencyRow = getRequiredElementById('image_compare_transparency_row');
+        this.transparencySlider = getRequiredElementById('image_compare_transparency_slider');
+        this.transparencyValue = getRequiredElementById('image_compare_transparency_value');
+        this.transparencySlider.addEventListener('input', () => {
+            this.transparencyPercent = parseFloat(this.transparencySlider.value);
+            this.transparencyValue.innerText = `${Math.round(this.transparencyPercent)}%`;
+            this.getOverlay()?.style.setProperty('--image-compare-transparency', `${this.transparencyPercent / 100}`);
+        });
+        this.metadataDiv = createDiv(null, 'image_compare_metadata current-image-data extras-wrapper-sideblock');
+        this.modal.querySelector('.imageview_modal_imagewrap').appendChild(this.metadataDiv);
+        this.updateMetadataVisibility();
+        this.updateModeControls();
+        this.supportedTypes = ['image', 'video'];
+        this.scrubRow = getRequiredElementById('image_compare_scrub_row');
+        this.videoControls = null;
+    }
+
+    getImgOrContainer() {
+        if (this.isOverlayMode()) {
+            let overlay = this.getOverlay();
+            return overlay ? [overlay] : [];
+        }
+        return [...this.stage.querySelectorAll('.image_compare_slot')];
+    }
+
+    getImg() {
+        return [...this.stage.querySelectorAll('.image_compare_media')];
+    }
+
+    getContainerAlignment(container) {
+        if (ImageCompareHelper.modeDefinitions[this.mode].layout != 'side' || window.matchMedia('(max-width: 900px)').matches) {
+            return 'center';
+        }
+        if (this.getImgOrContainer()[0] == container) {
+            return 'right';
+        }
+        return 'left';
+    }
+
+    getHeightPercent() {
+        let img = this.getImg()[0];
+        if (img && img.style.height) {
+            return parseFloat((img.style.height || '100%').replaceAll('%', ''));
+        }
+        let layout = this.getStateLayout();
+        if (!layout || !layout.rect.height) {
+            return this.zoom * 100;
+        }
+        return (layout.mediaHeight * this.zoom / layout.rect.height) * 100;
+    }
+
+    getImgLeft() {
+        let img = this.getImg()[0];
+        let layout = this.getStateLayout();
+        if (!img || !layout) {
+            return this.panX;
+        }
+        let left = parseFloat((img.style.left || `${layout.baseLeft}px`).replaceAll('px', ''));
+        if (isNaN(left)) {
+            return this.panX;
+        }
+        return left - layout.baseLeft;
+    }
+
+    getImgTop() {
+        let img = this.getImg()[0];
+        let layout = this.getStateLayout();
+        if (!img || !layout) {
+            return this.panY;
+        }
+        let top = parseFloat((img.style.top || `${layout.baseTop}px`).replaceAll('px', ''));
+        if (isNaN(top)) {
+            return this.panY;
+        }
+        return top - layout.baseTop;
+    }
+
+    onMouseDown(e) {
+        if (!this.hasSelection()) {
+            return;
+        }
+        if (e.button == 2) { // right-click
+            return;
+        }
+        let viewport = this.getViewportFromTarget(e.target);
+        if (!viewport || e.ctrlKey || e.shiftKey) {
+            return;
+        }
+        let divider = this.getOverlayDividerFromTarget(e.target);
+        if (divider) {
+            this.updateOverlaySplitFromClientPosition(viewport, e.clientX, e.clientY);
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+            this.isAdjustingOverlaySplit = true;
+            this.setViewportCursor(this.getSlideAxis() == 'y' ? 'ns-resize' : 'ew-resize');
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+        this.isDragging = true;
+        this.setViewportCursor('grabbing');
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    onGlobalMouseUp(e) {
+        if (!this.isDragging && !this.isAdjustingOverlaySplit) {
+            return;
+        }
+        this.setViewportCursor('grab');
+        this.isDragging = false;
+        this.isAdjustingOverlaySplit = false;
+        this.noClose = this.didDrag;
+        this.didDrag = false;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+    }
+
+    moveImg(xDiff, yDiff) {
+        if (this.getImgOrContainer().length == 0) {
+            return;
+        }
+        let newLeft = this.getImgLeft() + xDiff;
+        let newTop = this.getImgTop() + yDiff;
+        this.clampPan(newLeft, newTop);
+    }
+
+    onGlobalMouseMove(e) {
+        if (this.isAdjustingOverlaySplit) {
+            let xDiff = e.clientX - this.lastMouseX;
+            let yDiff = e.clientY - this.lastMouseY;
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+            let overlay = this.getOverlay();
+            if (overlay) {
+                this.updateOverlaySplitFromClientPosition(overlay, e.clientX, e.clientY);
+            }
+            if (Math.abs(xDiff) > 1 || Math.abs(yDiff) > 1) {
+                this.didDrag = true;
+            }
+            e.preventDefault();
+            return;
+        }
+        if (!this.isDragging) {
+            return;
+        }
+        let xDiff = e.clientX - this.lastMouseX;
+        let yDiff = e.clientY - this.lastMouseY;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+        this.moveImg(xDiff, yDiff);
+        if (Math.abs(xDiff) > 1 || Math.abs(yDiff) > 1) {
+            this.didDrag = true;
+        }
+        this.applyView();
+        e.preventDefault();
+    }
+
+    onWheel(e) {
+        if (!this.hasSelection() || e.ctrlKey || e.shiftKey) {
+            return;
+        }
+        let viewport = this.getViewportFromTarget(e.target);
+        let layout = this.getViewportLayout(viewport);
+        if (!viewport || !e.deltaY) {
+            return;
+        }
+        if (!layout) {
+            return;
+        }
+        let rect = layout.rect;
+        if (!rect.width || !rect.height) {
+            return;
+        }
+        let origHeight = this.getHeightPercent();
+        let zoom = Math.pow(this.zoomRate, -e.deltaY / 100);
+        let minHeight = 10;
+        let maxHeight = this.getMaxHeight();
+        if (maxHeight <= 0) {
+            maxHeight = Math.max(minHeight, origHeight * 4);
+        }
+        let newHeight = Math.max(minHeight, Math.min(origHeight * zoom, maxHeight));
+        if (Math.abs(newHeight - origHeight) < 0.0001) {
+            e.preventDefault();
+            return;
+        }
+        this.updateImageRendering(newHeight);
+        this.setViewportCursor('grab');
+        let localX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+        let localY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+        let zoomRatio = newHeight / origHeight;
+        let imgLeft = this.getImgLeft();
+        let imgTop = this.getImgTop();
+        let newPanX = localX - layout.baseLeft - (localX - layout.baseLeft - imgLeft) * zoomRatio;
+        let newPanY = localY - layout.baseTop - (localY - layout.baseTop - imgTop) * zoomRatio;
+        this.panX = newPanX;
+        this.panY = newPanY;
+        this.setHeightPercent(newHeight);
+        this.clampPan(newPanX, newPanY);
+        this.applyView();
+        e.preventDefault();
+    }
+
+    onImgLoad() {
+        this.applyView();
+    }
+
+    renderMediaElement(src, mediaClass, imageAttrs = '', videoAttrs = '', audioAttrs = '', allowAudio = true) {
+        let encodedSrc = escapeHtmlForUrl(src);
+        let videoType = isVideoExt(src);
+        if (videoType) {
+            return `<video class="${mediaClass}" ${videoAttrs}><source src="${encodedSrc}" type="${videoType}"></video>`;
+        }
+        if (allowAudio && isAudioExt(src)) {
+            return `<audio class="${mediaClass}" src="${encodedSrc}" ${audioAttrs}></audio>`;
+        }
+        return `<img class="${mediaClass}" src="${encodedSrc}" ${imageAttrs}>`;
+    }
+
+    getMetadataEntryMap(metadata) {
+        let formatted = getFormattedMetadataEntries(metadata);
+        let result = {};
+        for (let entry of formatted.entries) {
+            result[entry.id] = entry;
+        }
+        return result;
+    }
+
+    renderMetadataCell(entry) {
+        if (!entry) {
+            return '';
+        }
+        return entry.valueHtml + entry.extras;
+    }
+
+    renderMetadataTable() {
+        let leftEntries = this.getMetadataEntryMap(this.left?.metadata);
+        let rightEntries = this.getMetadataEntryMap(this.right?.metadata);
+        let ids = Object.keys(leftEntries);
+        for (let id of Object.keys(rightEntries)) {
+            if (!ids.includes(id)) {
+                ids.push(id);
+            }
+        }
+        if (ids.length == 0) {
+            return '';
+        }
+        let result = '<table class="image_compare_metadata_table"><thead><tr><th class="translate">Parameter</th><th class="translate">Image 1</th><th class="translate">Image 2</th></tr></thead><tbody>';
+        for (let id of ids) {
+            let entry = leftEntries[id] || rightEntries[id];
+            let leftEntry = leftEntries[id];
+            let rightEntry = rightEntries[id];
+            let sameClass = leftEntry && rightEntry && leftEntry.compareValue == rightEntry.compareValue ? ' image_compare_metadata_same' : '';
+            result += `<tr class="param_view_block tag-text tag-type-${entry.hash}${entry.added}${sameClass}"><td><span class="param_view_name" title="${escapeHtmlNoBr(entry.keyTitle)}">${escapeHtml(entry.key)}</span></td><td>${this.renderMetadataCell(leftEntry)}</td><td>${this.renderMetadataCell(rightEntry)}</td></tr>`;
+        }
+        return `${result}</tbody></table>`;
+    }
+
+    updateMetadataVisibility() {
+        this.metadataDiv.style.display = this.showMetadata && this.metadataDiv.innerHTML ? '' : 'none';
+        this.metadataToggleButton.setAttribute('aria-pressed', this.showMetadata ? 'true' : 'false');
+    }
+
+    toggleMetadataVisibility(showMetadata) {
+        this.showMetadata = showMetadata;
+        this.updateMetadataVisibility();
+        if (this.hasSelection()) {
+            this.applyView();
+        }
+    }
+
+    showComparison(left, right) {
+        if (this.left?.src != left?.src || this.right?.src != right?.src) {
+            this.clearVideoControls();
+        }
+        this.left = left;
+        this.right = right;
+        let wasAlreadyOpen = this.isOpen();
+        this.render();
+        if (wasAlreadyOpen) {
+            this.applyView();
+        }
+        else {
+            this.modalJq.modal('show');
+        }
+    }
+
+    close() {
+        if (this.isOpen()) {
+            if (this.modal.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+            this.modalJq.modal('hide');
+        }
+        this.reset();
+    }
+
+    isOpen() {
+        return this.modalJq.is(':visible');
+    }
+
+    isShowingPair(a, b) {
+        return this.isOpen() && this.left?.src == a?.src && this.right?.src == b?.src;
+    }
+
+    getMediaLayout(container, media) {
+        if (!container || !media) {
+            return null;
+        }
+        let rect = container.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+            return null;
+        }
+        let width = media.naturalWidth ?? media.videoWidth;
+        let height = media.naturalHeight ?? media.videoHeight;
+        if (!width || !height) {
+            return null;
+        }
+        let imgAspectRatio = width / height;
+        let targetWidth = rect.height * imgAspectRatio;
+        let mediaWidth = targetWidth;
+        let mediaHeight = rect.height;
+        if (targetWidth > rect.width) {
+            mediaWidth = rect.width;
+            mediaHeight = rect.width / imgAspectRatio;
+        }
+        let baseLeft = 0;
+        let alignment = this.getContainerAlignment(container);
+        if (alignment == 'center') {
+            baseLeft = (rect.width - mediaWidth) / 2;
+        }
+        else if (alignment == 'right') {
+            baseLeft = rect.width - mediaWidth;
+        }
+        return {
+            viewport: container,
+            media: media,
+            rect: rect,
+            mediaWidth: mediaWidth,
+            mediaHeight: mediaHeight,
+            baseLeft: baseLeft,
+            baseTop: (rect.height - mediaHeight) / 2
+        };
+    }
+
+    getStateLayout() {
+        return this.getViewportLayout(this.getImgOrContainer()[0]);
+    }
+
+    getMediaMaxHeight(img) {
+        if (!img) {
+            return 0;
+        }
+        let width = img.naturalWidth ?? img.videoWidth;
+        let height = img.naturalHeight ?? img.videoHeight;
+        if (!width || !height) {
+            return 0;
+        }
+        return Math.sqrt(width * height) * 2;
+    }
+
+    getMaxHeight() {
+        let maxHeight = 0;
+        for (let img of this.getImg()) {
+            maxHeight = Math.max(maxHeight, this.getMediaMaxHeight(img));
+        }
+        return maxHeight;
+    }
+
+    updateImageRendering(heightPercent = this.getHeightPercent()) {
+        for (let img of this.getImg()) {
+            let maxHeight = this.getMediaMaxHeight(img);
+            if (maxHeight > 0 && heightPercent > maxHeight / 5) {
+                img.style.imageRendering = 'pixelated';
+            }
+            else {
+                img.style.imageRendering = '';
+            }
+        }
+    }
+
+    setHeightPercent(heightPercent) {
+        let layout = this.getStateLayout();
+        if (!layout || !layout.rect.height || !layout.mediaHeight) {
+            this.zoom = Math.max(0.1, heightPercent / 100);
+            return;
+        }
+        let baseHeightPercent = (layout.mediaHeight / layout.rect.height) * 100;
+        if (baseHeightPercent <= 0) {
+            return;
+        }
+        this.zoom = Math.max(0.1, heightPercent / baseHeightPercent);
+    }
+
+    resetViewportState() {
+        this.overlaySplitPercent = 50;
+        this.transparencyPercent = 50;
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+        this.isDragging = false;
+        this.isAdjustingOverlaySplit = false;
+        this.didDrag = false;
+        this.noClose = false;
+    }
+
+    reset() {
+        this.stopPanning(true);
+        this.left = null;
+        this.right = null;
+        this.mode = 'side';
+        this.showMetadata = false;
+        this.resetViewportState();
+        this.setStageContent('side', '');
+        this.clearVideoControls();
+        this.metadataDiv.innerHTML = '';
+        this.updateMetadataVisibility();
+        this.updateModeControls();
+    }
+
+    isOverlayMode() {
+        return this.isSlideMode() || ImageCompareHelper.modeDefinitions[this.mode].layout == 'transparency';
+    }
+
+    isSlideMode() {
+        return ImageCompareHelper.modeDefinitions[this.mode].layout == 'slide';
+    }
+
+    getSlideAxis() {
+        return ImageCompareHelper.modeDefinitions[this.mode].axis || 'x';
+    }
+
+    swapImages() {
+        if (!this.hasSelection()) {
+            return;
+        }
+        [this.left, this.right] = [this.right, this.left];
+        this.render();
+    }
+
+    setMode(mode) {
+        if (mode == this.mode) {
+            this.updateModeControls();
+            return;
+        }
+        this.mode = mode;
+        if (this.hasSelection()) {
+            this.render();
+        }
+        else {
+            this.updateModeControls();
+        }
+    }
+
+    updateModeControls() {
+        for (let [mode, button] of Object.entries(this.modeButtonMap)) {
+            button.setAttribute('aria-pressed', this.mode == mode ? 'true' : 'false');
+        }
+        this.transparencyRow.style.display = ImageCompareHelper.modeDefinitions[this.mode].layout == 'transparency' ? '' : 'none';
+        this.transparencySlider.value = this.transparencyPercent;
+        updateRangeStyle(this.transparencySlider);
+        this.transparencyValue.innerText = `${Math.round(this.transparencyPercent)}%`;
+    }
+
+    setStageContent(layout, html) {
+        for (let media of this.stage.querySelectorAll('video, audio')) {
+            media.pause();
+        }
+        this.stage.classList.toggle('image_compare_stage_overlay', layout == 'overlay');
+        this.stage.classList.toggle('image_compare_stage_side', layout == 'side');
+        this.stage.classList.toggle('image_compare_stage_single', layout == 'single');
+        this.stage.innerHTML = html;
+    }
+
+    render() {
+        this.stopPanning(true);
+        this.updateModeControls();
+        let resumeTime = this.videoControls ? this.videoControls.media.currentTime : 0;
+        let resumePaused = this.videoControls ? this.videoControls.media.paused : false;
+        if (!this.hasSelection()) {
+            this.setStageContent('side', '');
+            this.clearVideoControls();
+            this.metadataDiv.innerHTML = '';
+            this.updateMetadataVisibility();
+            this.updateModeControls();
+            return;
+        }
+        if (this.isOverlayMode()) {
+            this.renderOverlay();
+        }
+        else if (ImageCompareHelper.modeDefinitions[this.mode].layout == 'single') {
+            this.setStageContent('single', `<div class="image_compare_slot">${this.renderMedia(this.left, 'left')}</div>`);
+        }
+        else {
+            this.setStageContent('side', `
+                <div class="image_compare_slot">${this.renderMedia(this.left, 'left')}</div>
+                <div class="image_compare_slot">${this.renderMedia(this.right, 'right')}</div>`
+            );
+        }
+        this.setupVideoControls(resumeTime, resumePaused);
+        let metadataHtml = this.renderMetadataTable();
+        this.metadataDiv.innerHTML = metadataHtml;
+        this.updateMetadataVisibility();
+        this.applyView();
+    }
+
+    renderOverlay() {
+        let overlayClasses = ['image_compare_overlay'];
+        if (this.isSlideMode()) {
+            if (this.getSlideAxis() == 'y') {
+                overlayClasses.push('image_compare_overlay_slide_vertical');
+            }
+        }
+        else {
+            overlayClasses.push('image_compare_overlay_transparency');
+        }
+        this.setStageContent('overlay', `
+            <div class="image_compare_slot">
+                <div class="${overlayClasses.join(' ')}" style="--image-compare-split:${this.overlaySplitPercent}%;--image-compare-transparency:${this.transparencyPercent / 100};">
+                    <div class="image_compare_overlay_layer image_compare_overlay_layer_left">${this.renderMedia(this.left, 'left')}</div>
+                    <div class="image_compare_overlay_layer image_compare_overlay_layer_right">${this.renderMedia(this.right, 'right')}</div>
+                    ${this.isSlideMode() ? '<div class="image_compare_overlay_divider"></div>' : ''}
+                </div>
+            </div>`
+        );
+    }
+
+    setupVideoControls(resumeTime, resumePaused) {
+        this.videoControls?.destroy();
+        this.videoControls = null;
+        let videos = [...this.stage.querySelectorAll('video.image_compare_media')];
+        this.scrubRow.classList.toggle('image_compare_scrub_row_active', videos.length > 0);
+        if (videos.length == 0) {
+            return;
+        }
+        let primary = videos.find(video => video.dataset.compareSide == 'left') ?? videos[0];
+        this.videoControls = new CompareVideoControls(videos, primary, this.scrubRow, resumeTime, resumePaused);
+    }
+
+    clearVideoControls() {
+        this.videoControls?.destroy();
+        this.videoControls = null;
+        this.scrubRow.classList.remove('image_compare_scrub_row_active');
+    }
+
+    updateOverlaySplitFromClientPosition(stage, clientX, clientY) {
+        let rect = stage.getBoundingClientRect();
+        let split;
+        if (this.getSlideAxis() == 'y') {
+            if (!rect.height) {
+                return;
+            }
+            split = ((clientY - rect.top) / rect.height) * 100;
+        }
+        else {
+            if (!rect.width) {
+                return;
+            }
+            split = ((clientX - rect.left) / rect.width) * 100;
+        }
+        this.overlaySplitPercent = Math.max(2, Math.min(98, split));
+        stage.style.setProperty('--image-compare-split', `${this.overlaySplitPercent}%`);
+    }
+
+    stopPanning(ignoreDragClose = false) {
+        this.setViewportCursor('grab');
+        this.isDragging = false;
+        this.isAdjustingOverlaySplit = false;
+        this.noClose = ignoreDragClose ? false : this.didDrag;
+        this.didDrag = false;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+    }
+
+    getViewportLayout(viewport) {
+        if (!viewport) {
+            return;
+        }
+        let media = viewport.querySelector('.image_compare_media');
+        if (!media) {
+            return;
+        }
+        return this.getMediaLayout(media.parentElement, media);
+    }
+
+    clampPan(panX = this.getImgLeft(), panY = this.getImgTop()) {
+        let imgs = this.getImg();
+        if (imgs.length == 0) {
+            return;
+        }
+        let minPanX = -Infinity;
+        let maxPanX = Infinity;
+        let minPanY = -Infinity;
+        let maxPanY = Infinity;
+        for (let img of imgs) {
+            let layout = this.getMediaLayout(img.parentElement, img);
+            if (!layout) {
+                continue;
+            }
+            let zoomedWidth = layout.mediaWidth * this.zoom;
+            let zoomedHeight = layout.mediaHeight * this.zoom;
+            let overWidth = layout.rect.width / 2;
+            let overHeight = layout.rect.height / 2;
+            minPanX = Math.max(minPanX, layout.rect.width - zoomedWidth - overWidth - layout.baseLeft);
+            maxPanX = Math.min(maxPanX, overWidth - layout.baseLeft);
+            minPanY = Math.max(minPanY, layout.rect.height - zoomedHeight - overHeight - layout.baseTop);
+            maxPanY = Math.min(maxPanY, overHeight - layout.baseTop);
+        }
+        if (minPanX > maxPanX) {
+            this.panX = (minPanX + maxPanX) / 2;
+        }
+        else {
+            this.panX = Math.min(maxPanX, Math.max(minPanX, panX));
+        }
+        if (minPanY > maxPanY) {
+            this.panY = (minPanY + maxPanY) / 2;
+        }
+        else {
+            this.panY = Math.min(maxPanY, Math.max(minPanY, panY));
+        }
+    }
+
+    getViewportFromTarget(target) {
+        if (!target || !target.closest) {
+            return null;
+        }
+        if (this.isOverlayMode()) {
+            return target.closest('.image_compare_overlay');
+        }
+        return target.closest('.image_compare_slot');
+    }
+
+    getOverlayDividerFromTarget(target) {
+        if (!this.isSlideMode() || !target || !target.closest) {
+            return null;
+        }
+        return target.closest('.image_compare_overlay_divider');
+    }
+
+    setViewportCursor(cursor) {
+        for (let viewport of this.getImgOrContainer()) {
+            viewport.style.cursor = cursor;
+        }
+        let divider = this.stage.querySelector('.image_compare_overlay_divider');
+        if (divider) {
+            let idleCursor = this.getSlideAxis() == 'y' ? 'ns-resize' : 'ew-resize';
+            divider.style.cursor = cursor == 'grab' ? idleCursor : cursor;
+        }
+    }
+
+    getOverlay() {
+        return this.stage.querySelector('.image_compare_overlay');
+    }
+
+    applyView() {
+        let imgs = this.getImg();
+        if (imgs.length == 0) {
+            return;
+        }
+        this.clampPan(this.panX, this.panY);
+        for (let img of imgs) {
+            let container = img.parentElement;
+            let layout = this.getMediaLayout(container, img);
+            if (!layout) {
+                continue;
+            }
+            img.style.left = `${layout.baseLeft + this.panX}px`;
+            img.style.top = `${layout.baseTop + this.panY}px`;
+            img.style.height = `${(layout.mediaHeight * this.zoom / layout.rect.height) * 100}%`;
+            img.style.maxWidth = 'none';
+            img.style.maxHeight = 'none';
+            img.style.objectFit = 'unset';
+            img.style.margin = '0';
+        }
+        let overlay = this.getOverlay();
+        overlay?.style.setProperty('--image-compare-split', `${this.overlaySplitPercent}%`);
+        overlay?.style.setProperty('--image-compare-transparency', `${this.transparencyPercent / 100}`);
+        this.updateImageRendering();
+    }
+
+    onWindowResize() {
+        if (!this.hasSelection() || !this.isOpen()) {
+            return;
+        }
+        this.applyView();
+    }
+
+    renderMedia(media, side) {
+        return this.renderMediaElement(
+            media.src,
+            'image_compare_media',
+            `alt="Compared media" data-compare-side="${side}" onload="imageCompareHelper.onImgLoad()"`,
+            `autoplay loop muted playsinline data-compare-side="${side}" onloadedmetadata="imageCompareHelper.onImgLoad()"`,
+            '',
+            false,
+        );
+    }
+
+    hasSelection() {
+        return this.left && this.right;
+    }
+
+    evaluateSelection(items) {
+        if (items.length == 0) {
+            return { state: 'partial', reason: 'Select 2 images or 2 videos to compare.' };
+        }
+        if (items.length == 1) {
+            return { state: 'partial', reason: 'Select 1 more image or video to compare.' };
+        }
+        if (items.length > 2) {
+            return { state: 'invalid', reason: 'Compare only supports exactly 2 selected items.' };
+        }
+        if (!this.supportedTypes.includes(items[0].mediaType) || !this.supportedTypes.includes(items[1].mediaType)) {
+            return { state: 'invalid', reason: 'Compare only supports images and videos.' };
+        }
+        return { state: 'ready', reason: 'Compare the selected items.' };
+    }
+}
+
+let imageCompareHelper = new ImageCompareHelper();

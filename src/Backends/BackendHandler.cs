@@ -1229,9 +1229,9 @@ public class BackendHandler
                 else if (Environment.TickCount64 - lastUpdate > Program.ServerSettings.Backends.MaxTimeoutMinutes * 60 * 1000)
                 {
                     // Check if any backend is RUNNING, LOADING, or WAITING
-                    bool anyBackendCanProgress = T2IBackends.Values.Any(b => 
-                        b.Backend.Status == BackendStatus.RUNNING || 
-                        b.Backend.Status == BackendStatus.LOADING || 
+                    bool anyBackendCanProgress = EnumerateT2IBackends.Any(b =>
+                        b.Backend.Status == BackendStatus.RUNNING ||
+                        b.Backend.Status == BackendStatus.LOADING ||
                         b.Backend.Status == BackendStatus.WAITING);
                     
                     if (Program.ServerSettings.Backends.PauseOnOutage && !anyBackendCanProgress)

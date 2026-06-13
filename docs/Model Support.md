@@ -18,6 +18,10 @@
 [Z-Image](#z-image) | S3-DiT | 2025 | Tongyi MAI (Alibaba) | 6B | No | Modern, Great Quality, lightweight |
 [Kandinsky 5](#kandinsky-5) | DiT | 2025 | Kandinsky Lab | 6B | No | Modern, Decent Quality |
 [Anima](#anima) | DiT | 2026 | Circlestone Labs | 2B | WTF | Modern, very small, decent for anime |
+[ERNIE](#ernie) | DiT | 2026 | Baidu | 8B | Minimal | Modern, intelligent, good quality, fast |
+[HiDream O1](#hidream-o1) | "Pixel UiT" | 2026 | HiDream | 8B | Minimal | Modern, intelligent, fast, decent quality |
+[Lens](#lens) | MMDiT | 2026 | Microsoft | 4B | Minimal | Modern, lightweight, eh quality |
+[Ideogram 4](#ideogram-4) | DiT | 2026 | Ideogram AI | 9B | Yes | Modern, advanced on input understanding |
 
 Old or bad options also tracked listed via [Obscure Model Support](/docs/Obscure%20Model%20Support.md):
 
@@ -33,6 +37,9 @@ Old or bad options also tracked listed via [Obscure Model Support](/docs/Obscure
 [HiDream i1](/docs/Obscure%20Model%20Support.md#hidream-i1) | MMDiT | 2025 | HiDream AI (Vivago) | 17B | Minimal | Good Quality, lost community attention |
 [OmniGen 2](/docs/Obscure%20Model%20Support.md#omnigen-2) | MLLM | 2025 | VectorSpaceLab | 7B | No | Modern, Decent Quality, quickly outclassed |
 [Ovis](/docs/Obscure%20Model%20Support.md#ovis) | MMDiT | 2025 | AIDC-AI (Alibaba) | 7B | No | Passable quality, but outclassed on launch |
+[LongCat-Image](/docs/Obscure%20Model%20Support.md#longcat-image) | MMDiT | 2025 | LongCat | 6B | No | Passable quality, but outclassed on launch |
+[Zeta Chroma](/docs/Obscure%20Model%20Support.md#zeta-chroma) | Pixel S3-DiT | 2026 | Lodestone Rock | 6B | No | Modern, Pixel-space Z-Image variant |
+[PixelDiT](/docs/Obscure%20Model%20Support.md#pixeldit) | Pixel DiT | 2026 | NVIDIA | 1.3B | Minimal | Modern, fast, pixel-space, but very bad relative quality on launch |
 
 - **Architecture** is the fundamental machine learning structure used for the model, UNet's were used in the past but DiT (Diffusion Transformers) are the modern choice
 - **Scale** is how big the model is - "B" for "Billion", so for example "2B" means "Two billion parameters".
@@ -283,7 +290,7 @@ For upscaling with SD3, the `Refiner Do Tiling` parameter is highly recommended 
         - Select via the advanced `Mistral Model` parameter
 - **Parameters:**
     - **Prompt:** Prompting guide from the model creators here <https://docs.bfl.ai/guides/prompting_guide_flux2>
-        - Notably, they trained heavily on complex JSON structured prompts to allow for very complex scene control, though this is not required
+        - Their docs recommend a JSON structured prompting, but this does not seem all that much more useful in practice, and the JSON syntax in a prompt may trigger parsing issues
         - They used a powerful LLM for inputs, allow for multiple languages and a variety of ways of phrasing/formatting text to work out
     - **Resolution:** Flux2 supports just about any resolution you can think of, from 64x64 up to 4 megapixels (2048x2048)
     - **CFG Scale:** `1`
@@ -307,6 +314,10 @@ For upscaling with SD3, the `Refiner Do Tiling` parameter is highly recommended 
         - or a [gguf here](<https://huggingface.co/unsloth/FLUX.2-klein-9B-GGUF/blob/main/flux-2-klein-9b-Q4_K_M.gguf>)
     - or [klein 9b base here](<https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/blob/main/flux-2-klein-base-9b-fp8.safetensors>)
         - or a [gguf here](<https://huggingface.co/unsloth/FLUX.2-klein-base-9B-GGUF/blob/main/flux-2-klein-base-9b-Q4_K_M.gguf>)
+    - or [klein 9b-kv cache version here](<https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-kv-fp8/blob/main/flux-2-klein-9b-kv-fp8.safetensors>)
+        - This version uses "KV Cache" to accelerate image editing.
+        - Any model with KV Cache support **MUST HAVE** `9b-kv` in the filename. This is how Swarm detects and applies KV Cache behavior to the model. (There is no way to automatically detect).
+        - This requires significantly more VRAM, so most people do not want this.
     - Save the file into `diffusion_models`
     - Broadly works the same as Flux.2-Dev
     - On the distilled model set `Steps` to `8`, on base model use normal high step counts
@@ -546,7 +557,7 @@ For upscaling with SD3, the `Refiner Do Tiling` parameter is highly recommended 
     - It is designed to be tiny, lightweight, fast, but built on a strong architecture.
     - It is the first model architecture publicly released that was sponsored by Comfy Org!
     - It is explicitly still in Preview status, they will be training it further before it's entirely ready.
-- Download the [preview version here](<https://huggingface.co/circlestone-labs/Anima/blob/main/split_files/diffusion_models/anima-preview.safetensors>)
+- Download [Anima v1 here](<https://huggingface.co/circlestone-labs/Anima/resolve/main/split_files/diffusion_models/anima-base-v1.0.safetensors>)
     - Save in `diffusion_models`
 - It uses a tiny Qwen 3 600M ("0.6B") text encoder. This will be autodownloaded.
 - It uses the Qwen Image VAE. This will be autodownloaded.
@@ -557,6 +568,100 @@ For upscaling with SD3, the `Refiner Do Tiling` parameter is highly recommended 
     - **Resolution:** Side length 1024 recommend, but any lower value works too. Higher values do not work well. Refiner upscale needs tiling due to corruption at high res.
     - **Sampler:** Defaults to `ER-SDE-Solver`, but all common samplers work. They officially recommend also trying out `Euler Ancestral` or `DPM++ 2M SDE`
     - **Scheduler:** Default is fine (`Simple`), or you can experiment at will. The model is adaptable.
+
+# ERNIE
+
+![img](/docs/images/models/ernie.jpg)
+
+*(ERNIE Base, Steps=20, CFG=4)*
+
+- Baidu's [ERNIE Image](<https://huggingface.co/baidu/ERNIE-Image>) is supported in SwarmUI!
+- It is an 8B model, with both a strong base and an official turbo designed to run extremely fast while competing at the top level of image models
+    - The "Turbo" model (in fat BF16) can be downloaded here [Comfy-Org/ERNIE-Image - turbo](<https://huggingface.co/Comfy-Org/ERNIE-Image/resolve/main/diffusion_models/ernie-image-turbo.safetensors>)
+    - Or the base version (in fat BF16) [Comfy-Org/ERNIE-Image - base](<https://huggingface.co/Comfy-Org/ERNIE-Image/resolve/main/diffusion_models/ernie-image.safetensors>)
+    - FP8 links pending
+    - Save in `diffusion_models`
+- Uses the Flux.2 VAE, will be downloaded and handled automatically
+- Uses the Ministral 3 3b text encoder, will be downloaded and handled automatically
+- **Parameters:**
+    - **Prompt:** Supports general prompting in any format just fine. Speaks English and Chinese deeply.
+    - **Sampler:** Default is fine.
+    - **Scheduler:** Default is fine.
+    - **CFG Scale:** For Turbo, `1`, for base normal CFG ranges (around `4`)
+    - **Steps:** For Turbo `8` is recommended. For Base, 20+ steps as normal.
+    - **Resolution:** Side length `1024` is the standard.
+        - Down to 512 works still, up to 1536 is fine.
+        - Out of range doesn't corrupt immediately but will fail at composition.
+        - Prefers aspects from square to 16:9, gets funny in 21:9
+
+# HiDream-O1
+
+![img](/docs/images/models/hidreamo1.jpg)
+
+*(HiDream-o1 Dev FP8, Steps=20, CFG=1, SideLength=2048)*
+
+- HiDream's [HiDream O1](<https://huggingface.co/HiDream-ai/HiDream-O1-Image>) is supported in SwarmUI!
+- It is an 8B model, with both a base and an official 'dev' distill designed to run faster
+    - The "Dev" model (in fat BF16) can be downloaded here [Comfy-Org/HiDream-O1-Image - dev](<https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_bf16.safetensors>)
+        - Dev FP8 version can be downloaded here [Comfy-Org/HiDream-O1-Image - dev FP8](<https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_dev_fp8_scaled.safetensors>)
+    - Or the base version (in fat BF16) [Comfy-Org/HiDream-O1-Image - base](<https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_bf16.safetensors>)
+        - Base FP8 version can be downloaded here [Comfy-Org/HiDream-O1-Image - base FP8](<https://huggingface.co/Comfy-Org/HiDream-O1-Image/resolve/main/checkpoints/hidream_o1_image_fp8_scaled.safetensors>)
+    - Save in `Stable-Diffusion`
+- It has no VAE, but has in-middle dedicated large patch scaling to compensate
+- Its text encoding is similarly native-integrated
+- **Parameters:**
+    - **Prompt:** Supports general prompting in any format just fine. Speaks at least English and Chinese. Was designed to use LLM-written prompts.
+    - **Prompt Images:** You can upload up to 10 images for image-editing input, but it only strongly obeys single-image input.
+    - **Sampler:** Default is fine.
+    - **Scheduler:** Default is fine.
+    - **CFG Scale:** For Dev, `1`, for base normal CFG ranges (around `5`)
+    - **Steps:** For Dev `28` is their recommendation, but even just `4` works fine for simple images. For Base, 50 steps is the official recommendation.
+    - **Resolution:** Side length `2048` is the model's standard, but a wide range works well.
+        - Because of the aggressive patch scaling, 2048 on this model looks more like 1024 on most other models. 1024 on this model looks noticeably worse. Going above 2048 will have some color distortion.
+- **Dev Lora:**
+    - A dev lora can be downloaded here [Kijai/hidream-O1-image_comfy](<https://huggingface.co/Kijai/hidream-O1-image_comfy/resolve/main/loras/hidream_o1_dev_lora_rank_64_bf16_pruned_v1.safetensors>). It allows use of the base model with the distilled behavior from the Dev model. 8 steps will generate a coherent image of lower quality, 16 steps seems closer to original quality. Use CFG Scale 1.
+
+# Lens
+
+![img](/docs/images/models/lens.jpg)
+
+*(Lens Turbo fp8, Steps=8, CFG=1, SideLength=1440)*
+
+- Microsoft's [Lens](<https://huggingface.co/microsoft/Lens>) is supported in SwarmUI!
+- It is a 4B model (Officially listed as 3.8B), with a base model and an official turbo distill designed to run fast.
+    - The raw base model (FP8) can be downloaded here: [Comfy-Org/Lens](<https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_mxfp8.safetensors>)
+    - The Turbo model (FP8) can be downloaded here: [Comfy-Org/Lens - Turbo](<https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_turbo_mxfp8.safetensors>)
+    - Or fat BF16 versions [Comfy-Org/Lens - base bf16](<https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_bf16.safetensors>) [Comfy-Org/Lens - turbo bf16](<https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_turbo_bf16.safetensors>)
+    - Save in `diffusion_models`
+- Uses the Flux.2 VAE, will be downloaded and handled automatically
+- Uses the GPT-OSS 20B text encoder, will be downloaded and handled automatically
+- **Parameters:**
+    - **Sampler:** Default is fine.
+    - **Scheduler:** Default is fine.
+    - **CFG Scale:** For Turbo, `1`, for base normal CFG ranges (around `5`)
+    - **Steps:** For Turbo, `4` is recommended, `8` works well. For Base, `20` as normal.
+    - **Resolution:** Side length `1440` is the official default, but 1024 is a reasonable option. It retains coherence down to about 512 and up to about 2048.
+
+# Ideogram 4
+
+- [Ideogram 4](<https://huggingface.co/ideogram-ai/ideogram-4-fp8>) is supported in SwarmUI!
+- It is a 9B model with an optional split unconditional model
+    - You can download the FP8 here: [Comfy-Org/Ideogram-4 FP8](<https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_fp8_scaled.safetensors>)
+    - Or the NVFP4 (5 gigs) here: [Comfy-Org/Ideogram-4 nvfp4](<https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_nvfp4_mixed.safetensors>)
+    - The "unconditional" models are here if you want them: [Comfy-Org/Ideogram](<https://huggingface.co/Comfy-Org/Ideogram-4/tree/main/diffusion_models>)
+        - The idea is you use a separate model for the negative half of CFG from the positive half (this is not required, and not currently implemented in SwarmUI)
+- It has built-in-to-the-model censorship, the model itself will try to reject inappropriate prompts.
+- **Parameters:**
+    - **Prompt:** They have an official prompting guide here [Ideogram-OSS: Docs/Prompting](<https://github.com/ideogram-oss/ideogram4/blob/main/docs/prompting.md>)
+        - They suggest long form JSON prompts, and have trained the model to understand features within such as bounding box coordinates as part of the structure
+        - If you don't use JSON it will just censor you almost every time.
+    - **Steps:** They suggest `12` for Turbo, `48` for quality. Anywhere in between is fine.
+    - **CFG:** Standard range around `7`, they suggest using a refiner stage of 1-3 steps at CFG=3.
+    - **Sampler:** Default is fine.
+    - **Scheduler:** Default is fine. They have an official specific custom one, but users have found this to be worse than default.
+    - **Resolution:** Side length `1024` is the default.
+    - **Sigma Shift:** Default is `1`, Some users recommend `5`.
+
 
 # Video Models
 

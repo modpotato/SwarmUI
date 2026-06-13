@@ -17,7 +17,7 @@ public class GeneratePageModel
     public bool IsLoginEnabled => Program.ServerSettings.UserAuthorization.AuthorizationRequired;
 
     public User User;
-    
+
     public GeneratePageModel(HttpContext context)
     {
         HttpContext = context;

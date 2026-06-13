@@ -70,6 +70,10 @@ public class Settings : AutoConfiguration
     [ConfigComment("Settings related to CivitAI integration for model downloads.")]
     public CivitAISettings CivitAI = new();
 
+    [ConfigComment("List of disabled extension folder names.\nDisabled extensions remain installed on disk, but are not loaded at server startup.")]
+    [SettingHidden]
+    public List<string> DisabledExtensions = [];
+
     /// <summary>Settings related to Swarm server maintenance..</summary>
     public class ServerMaintenanceData : AutoConfiguration
     {
@@ -301,7 +305,7 @@ public class Settings : AutoConfiguration
         [ConfigComment("How many entries in an X-Forwarded-For header to trust.\nDefaults to 3.\nSet to 0 to not trust any forwarded-for.")]
         public int MaxXForwardedFor = 3;
 
-        [ConfigComment("Maximum megabytes that can be sent as a single message from a client to the Swarm server.\nSet this lower to limit above, set this higher to allow very large file uploads.\nServer needs a restart for this to fully apply.")]
+        [ConfigComment("Maximum megabytes that can be sent as a single message from a client to the Swarm server.\nSet this lower to limit abuse, set this higher to allow very large file uploads.\nServer needs a restart for this to fully apply.")]
         public int MaxNetworkRequestMegabytes = 200;
 
         /// <summary>Converts <see cref="MaxNetworkRequestMegabytes"/> to bytes as a long.</summary>
@@ -588,7 +592,9 @@ Guidelines:
         public bool AutoSwapImagesIncludesFullView = false; // TODO: UserUI
 
         [ConfigComment("A list of what buttons to include directly under images in the main prompt area of the Generate tab.\nOther buttons will be moved into the 'More' dropdown.\nThis should be a comma separated list."
-            + "\nThe following options are available: \"Use As Init\", \"Use As Image Prompt\", \"Edit Image\", \"Upscale 2x\", \"Star\", \"Reuse Parameters\", \"Open In Folder\", \"Delete\", \"Download\" \"View In History\", \"Refine Image\""
+            + "\nThe following options are available: \"Use As Init\", \"Use As Image Prompt\", \"Edit Image\", \"Upscale 2x\", \"Star\", \"Reuse Parameters\", \"Open In Folder\", \"Delete\", \"Download\", \"View In History\", \"Refine Image\", \"Copy Path\", \"Copy Raw Metadata\""
+            + "\nSome buttons like 'Edit Image' may only apply to images and will not show for audio or video files."
+            + "\nExtensions can add their own button names here too."
             + "\nThe default is blank, which currently implies 'Use As Init,Edit Image,Star,Reuse Parameters'")]
         public string ButtonsUnderMainImages = ""; // TODO: UserUI
 

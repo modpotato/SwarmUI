@@ -39,6 +39,13 @@
             };
         </text>
     }
+    window.parameter_remaps = {};
+    @foreach ((string oldID, string newID) in T2IParamTypes.ParameterRemaps)
+    {
+        <text>
+            window.parameter_remaps["@oldID"] = "@newID";
+        </text>
+    }
 </script>
 
 <ul class="nav nav-tabs" role="tablist" id="toptablist">
@@ -103,6 +110,8 @@
     <script src="js/genpage/utiltab.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/server/servertab.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/usertab.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/color_picker.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/image_editor_tools.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/helpers/image_editor.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/helpers/generatehandler.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/simpletab.js?vary=@Utilities.VaryID"></script>
@@ -116,6 +125,7 @@
     <script src="js/genpage/helpers/settings_editor.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/server/logs.js?vary=@Utilities.VaryID"></script>
     <script src="js/genpage/helpers/ui_improvements.js?vary=@Utilities.VaryID"></script>
+    <script src="js/genpage/helpers/mediacontrols.js?vary=@Utilities.VaryID"></script>
     @WebServer.PageFooterExtra
     <script src="js/genpage/helpers/finalscript.js?vary=@Utilities.VaryID"></script>
 }
