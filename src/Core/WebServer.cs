@@ -520,6 +520,12 @@ public class WebServer
     /// <summary>Returns the root folder for the user's output.</summary>
     public static string GetUserOutputRoot(User user) => GetUserOutputRoot(user.UserID);
 
+    /// <summary>Returns the root folder for a user's generated videos.</summary>
+    public static string GetUserVideoOutputRoot(string user) => $"{Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, Program.ServerSettings.Paths.VideoOutputPath)}/{user}".TrimEnd('/');
+
+    /// <summary>Returns the root folder for a user's generated videos.</summary>
+    public static string GetUserVideoOutputRoot(User user) => GetUserVideoOutputRoot(user.UserID);
+
     /// <summary>Web route for viewing output images.</summary>
     public async Task ViewOutput(HttpContext context)
     {
@@ -546,7 +552,8 @@ public class WebServer
             await context.YieldJsonOutput(null, 400, Utilities.ErrorObj("invalid or unauthorized", "invalid_user"));
             return;
         }
-        string root = GetUserOutputRoot("");
+        string outputUser = "";
+        string root = GetUserOutputRoot(outputUser);
         if (Program.ServerSettings.Paths.AppendUserNameToOutputPath)
         {
             if (isExact)
@@ -557,13 +564,20 @@ public class WebServer
                     await context.YieldJsonOutput(null, 400, Utilities.ErrorObj("unauthorized - you may not view other users' outputs", "unauthorized"));
                     return;
                 }
-                root = GetUserOutputRoot(forUser);
+                outputUser = forUser;
+                root = GetUserOutputRoot(outputUser);
                 path = newPath;
             }
             else
             {
-                root = GetUserOutputRoot(user);
+                outputUser = user.UserID;
+                root = GetUserOutputRoot(outputUser);
             }
+        }
+        if (path.StartsWith("Videos/"))
+        {
+            path = path["Videos/".Length..];
+            root = GetUserVideoOutputRoot(outputUser);
         }
         (path, string consoleError, string userError) = CheckFilePath(root, path);
         if (consoleError is not null)

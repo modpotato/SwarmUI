@@ -224,9 +224,12 @@ public class Session : IEquatable<Session>
             Logs.Verbose($"Image is type {image.File.Type} and will save with extension '{image.File.Type.Extension}'.");
             extension = image.File.Type.Extension;
         }
-        string fullPathNoExt = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{User.OutputDirectory}/{imagePath}"));
+        bool isVideo = image.File.Type.MetaType == MediaMetaType.Video;
+        string outputDirectory = isVideo ? User.VideoOutputDirectory : User.OutputDirectory;
+        string virtualPathPrefix = isVideo ? "Videos/" : "";
+        string fullPathNoExt = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{outputDirectory}/{imagePath}", root: outputDirectory));
         string pathFolder = imagePath.Contains('/') ? imagePath.BeforeLast('/') : "";
-        string folderRoute = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{User.OutputDirectory}/{pathFolder}"));
+        string folderRoute = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{outputDirectory}/{pathFolder}", root: outputDirectory));
         string fullPath = $"{fullPathNoExt}.{extension}";
         lock (User.UserLock)
         {
@@ -239,7 +242,7 @@ public class Session : IEquatable<Session>
                 {
                     num++;
                     imagePath = rawImagePath.Contains("[number]") ? rawImagePath.Replace("[number]", $"{num}") : $"{rawImagePath}-{num}";
-                    fullPathNoExt = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{User.OutputDirectory}/{imagePath}"));
+                    fullPathNoExt = Path.GetFullPath(UserImageHistoryHelper.GetRealPathFor(User, $"{outputDirectory}/{imagePath}", root: outputDirectory));
                     fullPath = $"{fullPathNoExt}.{extension}";
                 }
                 RecentlyBlockedFilenames[fullPath] = fullPath;
@@ -272,7 +275,7 @@ public class Session : IEquatable<Session>
             }
         }
         string prefix = Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"View/{User.UserID}/" : "Output/";
-        return ($"{prefix}{imagePath}.{extension}", fullPath);
+        return ($"{prefix}{virtualPathPrefix}{imagePath}.{extension}", fullPath);
     }
 
     /// <summary>Gets a hash code for this session, for C# equality comparsion.</summary>

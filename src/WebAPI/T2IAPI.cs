@@ -30,6 +30,7 @@ public static class T2IAPI
         API.RegisterAPICall(GenerateText2ImageWS, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(AddImageToHistory, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(ListImages, false, Permissions.ViewImageHistory);
+        API.RegisterAPICall(ListVideos, false, Permissions.ViewImageHistory);
         API.RegisterAPICall(ListImagesRecursive, false, Permissions.ViewImageHistory);
         API.RegisterAPICall(ToggleImageStarred, true, Permissions.UserStarImages);
         API.RegisterAPICall(OpenImageFolder, true, Permissions.LocalImageFolder);
@@ -527,6 +528,18 @@ public static class T2IAPI
 
     public enum ImageHistorySortMode { Name, Date }
 
+    /// <summary>Resolves the physical media root and removes the reserved virtual Videos/ prefix when present.</summary>
+    public static string ResolveMediaOutputRoot(Session session, ref string path)
+    {
+        path = path.Replace('\\', '/').TrimStart('/');
+        if (path.StartsWith("Videos/"))
+        {
+            path = path["Videos/".Length..];
+            return Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.VideoOutputDirectory);
+        }
+        return Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+    }
+
     private static JObject GetListAPIInternal(Session session, string rawPath, string root, HashSet<string> extensions, Func<string, bool> isAllowed, int depth, ImageHistorySortMode sortBy, bool sortReverse)
     {
         int maxInHistory = session.User.Settings.MaxImagesInHistory;
@@ -718,12 +731,36 @@ public static class T2IAPI
         return GetListAPIInternal(session, path, root, HistoryExtensions, f => true, depth, sortMode, sortReverse);
     }
 
+    [API.APIDescription("Gets a list of videos in the dedicated saved-video history folder.",
+        "\"folders\": [], \"files\": [{ \"src\": \"Videos/path/to/video.mp4\", \"metadata\": \"...\" }]")]
+    public static async Task<JObject> ListVideos(Session session,
+        [API.APIParameter("The folder path to start the listing in. Use an empty string for root.")] string path,
+        [API.APIParameter("Maximum depth (number of recursive folders) to search.")] int depth,
+        [API.APIParameter("What to sort the list by - `Name` or `Date`.")] string sortBy = "Date",
+        [API.APIParameter("If true, the sorting should be done in reverse.")] bool sortReverse = false)
+    {
+        if (!Enum.TryParse(sortBy, true, out ImageHistorySortMode sortMode))
+        {
+            return new JObject() { ["error"] = $"Invalid sort mode '{sortBy}'." };
+        }
+        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.VideoOutputDirectory);
+        JObject result = GetListAPIInternal(session, path, root, HistoryExtensions, f => true, depth, sortMode, sortReverse);
+        if (result["files"] is JArray files)
+        {
+            foreach (JObject file in files.OfType<JObject>())
+            {
+                file["src"] = $"Videos/{file["src"]}";
+            }
+        }
+        return result;
+    }
+
     [API.APIDescription("Open an image folder in the file explorer. Used for local users directly.", "\"success\": true")]
     public static async Task<JObject> OpenImageFolder(Session session,
         [API.APIParameter("The path to the image to show in the image folder.")] string path)
     {
         string origPath = path;
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        string root = ResolveMediaOutputRoot(session, ref path);
         (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
         if (consoleError is not null)
         {
@@ -763,7 +800,7 @@ public static class T2IAPI
         [API.APIParameter("The path to the image to delete.")] string path)
     {
         string origPath = path;
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        string root = ResolveMediaOutputRoot(session, ref path);
         (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
         if (consoleError is not null)
         {
@@ -890,13 +927,13 @@ public static class T2IAPI
     {
         bool wasStar = false;
         path = path.Replace('\\', '/').Trim('/');
+        string root = ResolveMediaOutputRoot(session, ref path);
         if (path.StartsWith("Starred/"))
         {
             wasStar = true;
             path = path["Starred/".Length..];
         }
         string origPath = path;
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
         (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
         if (consoleError is not null)
         {
@@ -1140,7 +1177,8 @@ public static class T2IAPI
             return new JObject() { ["error"] = "Path cannot be empty." };
         }
         
-        string root = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        bool isVideo = path.Replace('\\', '/').TrimStart('/').StartsWith("Videos/");
+        string root = ResolveMediaOutputRoot(session, ref path);
         (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
         if (consoleError is not null)
         {
@@ -1154,7 +1192,7 @@ public static class T2IAPI
         }
         
         string standardizedPath = Path.GetFullPath(path);
-        string userOutput = Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, session.User.OutputDirectory);
+        string userOutput = root;
         string recycleBinRoot = Path.Combine(userOutput, "RecycleBin");
         
         // Calculate relative path to preserve structure
@@ -1199,7 +1237,7 @@ public static class T2IAPI
             OutputMetadataTracker.RemoveMetadataFor(newPath); // Ensure clean state
             
             string relativeNewPath = Path.GetRelativePath(userOutput, newPath);
-            return new JObject() { ["success"] = true, ["new_path"] = relativeNewPath };
+            return new JObject() { ["success"] = true, ["new_path"] = isVideo ? $"Videos/{relativeNewPath.Replace('\\', '/')}" : relativeNewPath };
         }
         catch (Exception ex)
         {

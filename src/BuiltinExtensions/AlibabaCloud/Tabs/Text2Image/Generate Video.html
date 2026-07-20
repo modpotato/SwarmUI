@@ -1,0 +1,65 @@
+<div class="alibaba-video-layout">
+    <section class="alibaba-video-panel alibaba-video-inputs">
+        <div class="alibaba-video-panel-title translate">Video Inputs</div>
+        <label class="alibaba-video-field">
+            <span class="translate">Model</span>
+            <select id="alibaba_video_model">
+                <option value="happyhorse-1.1-t2v">HappyHorse 1.1 Text-to-Video</option>
+                <option value="happyhorse-1.1-i2v">HappyHorse 1.1 Image-to-Video</option>
+                <option value="happyhorse-1.1-r2v">HappyHorse 1.1 Reference-to-Video</option>
+            </select>
+        </label>
+        <label class="alibaba-video-field alibaba-video-prompt-field">
+            <span class="translate">Prompt</span>
+            <textarea id="alibaba_video_prompt" rows="8" placeholder="Describe the scene, motion, camera, and audio..."></textarea>
+        </label>
+        <div class="alibaba-video-field-row">
+            <label class="alibaba-video-field">
+                <span class="translate">Resolution</span>
+                <select id="alibaba_video_resolution">
+                    <option value="720P">720P</option>
+                    <option value="1080P">1080P</option>
+                </select>
+            </label>
+            <label class="alibaba-video-field">
+                <span class="translate">Aspect Ratio</span>
+                <select id="alibaba_video_ratio">
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                    <option value="4:3">4:3</option>
+                    <option value="3:4">3:4</option>
+                    <option value="21:9">21:9</option>
+                    <option value="9:21">9:21</option>
+                </select>
+            </label>
+            <label class="alibaba-video-field">
+                <span class="translate">Duration</span>
+                <input id="alibaba_video_duration" type="number" min="3" max="15" step="1" value="5" />
+            </label>
+        </div>
+        <label class="alibaba-video-field" id="alibaba_video_references_wrap">
+            <span id="alibaba_video_references_label" class="translate">Reference Images</span>
+            <input id="alibaba_video_references" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+            <small id="alibaba_video_references_hint"></small>
+        </label>
+        <div class="alibaba-video-actions">
+            <button id="alibaba_video_generate" class="basic-button translate">Generate Video</button>
+            <button id="alibaba_video_interrupt" class="interrupt-button translate">Interrupt</button>
+        </div>
+        <div id="alibaba_video_status" class="alibaba-video-status translate">Ready.</div>
+    </section>
+    <section class="alibaba-video-panel alibaba-video-result-panel">
+        <div class="alibaba-video-panel-title translate">Video</div>
+        <div id="alibaba_video_result" class="alibaba-video-result">
+            <div class="alibaba-video-empty translate">Generate a HappyHorse video to view it here.</div>
+        </div>
+    </section>
+    <section class="alibaba-video-panel alibaba-video-history-panel">
+        <div class="alibaba-video-panel-title-row">
+            <div class="alibaba-video-panel-title translate">Recent Videos</div>
+            <button id="alibaba_video_refresh" class="basic-button translate">Refresh</button>
+        </div>
+        <div id="alibaba_video_history" class="alibaba-video-history"></div>
+    </section>
+</div>

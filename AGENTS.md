@@ -82,6 +82,8 @@ This project contains multiple parts all in one repo. Please observe unique expe
 - `src/BuiltinExtensions`: extensions to SwarmUI that are built in and part of the main repo.
 - `src/Extensions`: externally downloaded extensions. If you are asked to work within an extension, contain your work only to that extension's folder. If you were not asked to work there, do not modify anything in the extensions folder.
 
+Generated video files are stored under `Paths.VideoOutputPath`, separate from image outputs. User-visible media paths keep the normal `View/` or `Output/` route and use the reserved virtual `Videos/` prefix, which resolves to the video output root.
+
 ## CSS Info
 
 This section applies to `src/wwwroot/css`, generally you also co-edit `src/Pages` and `src/wwwroot/js` at the same time.

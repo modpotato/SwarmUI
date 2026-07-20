@@ -1,0 +1,138 @@
+.alibaba-video-layout {
+    display: grid;
+    grid-template-columns: minmax(18rem, 0.8fr) minmax(24rem, 1.5fr) minmax(16rem, 0.7fr);
+    gap: 0.75rem;
+    height: 100%;
+    padding: 0.75rem;
+    background: var(--background);
+}
+
+.alibaba-video-panel {
+    min-width: 0;
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--light-border);
+    border-radius: 0.5rem;
+    background: var(--popup-back);
+}
+
+.alibaba-video-panel-title {
+    margin-bottom: 0.8rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.alibaba-video-panel-title-row,
+.alibaba-video-actions,
+.alibaba-video-result-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.alibaba-video-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.8rem;
+}
+
+.alibaba-video-field-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.alibaba-video-field select,
+.alibaba-video-field input,
+.alibaba-video-field textarea {
+    width: 100%;
+}
+
+.alibaba-video-prompt-field textarea {
+    min-height: 9rem;
+    resize: vertical;
+}
+
+.alibaba-video-status {
+    margin-top: 0.8rem;
+    min-height: 1.5rem;
+    color: var(--text-soft);
+}
+
+.alibaba-video-result-panel,
+.alibaba-video-result {
+    display: flex;
+    flex-direction: column;
+}
+
+.alibaba-video-result {
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 20rem;
+}
+
+.alibaba-video-main {
+    width: 100%;
+    max-height: calc(100vh - 11rem);
+    border-radius: 0.4rem;
+    background: #000;
+}
+
+.alibaba-video-result-actions {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.75rem;
+}
+
+.alibaba-video-history {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.65rem;
+}
+
+.alibaba-video-history-item {
+    overflow: hidden;
+    border: 1px solid var(--light-border);
+    border-radius: 0.4rem;
+    cursor: pointer;
+    background: var(--background);
+}
+
+.alibaba-video-history-item:hover {
+    border-color: var(--button-border);
+}
+
+.alibaba-video-history-item video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #000;
+}
+
+.alibaba-video-history-name {
+    overflow: hidden;
+    padding: 0.45rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.alibaba-video-empty {
+    color: var(--text-soft);
+    text-align: center;
+}
+
+@media (max-width: 900px) {
+    .alibaba-video-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: auto;
+    }
+
+    .alibaba-video-field-row {
+        grid-template-columns: 1fr;
+    }
+}

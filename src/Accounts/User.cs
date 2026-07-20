@@ -283,6 +283,9 @@ public class User
     /// <summary>Path to the output directory appropriate to this session.</summary>
     public string OutputDirectory => Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"{Program.ServerSettings.Paths.OutputPath}/{UserID}" : Program.ServerSettings.Paths.OutputPath;
 
+    /// <summary>The physical output directory used for generated videos.</summary>
+    public string VideoOutputDirectory => Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"{Program.ServerSettings.Paths.VideoOutputPath}/{UserID}" : Program.ServerSettings.Paths.VideoOutputPath;
+
     /// <summary>Returns the maximum simultaneous text-2-image requests appropriate to this user's restrictions and the available backends.</summary>
     public int CalcMaxT2ISimultaneous => Math.Max(1, Math.Min(CalculatedRole.Data.MaxT2ISimultaneous, Program.ServerSettings.Backends.UnrestrictedMaxT2iSimultaneous ? int.MaxValue : Program.Backends.RunningBackendsOfType<AbstractT2IBackend>().Sum(b => b.MaxUsages) * 2));
 

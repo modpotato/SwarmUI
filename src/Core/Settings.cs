@@ -70,6 +70,10 @@ public class Settings : AutoConfiguration
     [ConfigComment("Settings related to CivitAI integration for model downloads.")]
     public CivitAISettings CivitAI = new();
 
+    /// <summary>Server-wide Alibaba Cloud settings.</summary>
+    [ConfigComment("Settings related to Alibaba Cloud Model Studio remote image and video generation.")]
+    public AlibabaCloudData AlibabaCloud = new();
+
     [ConfigComment("List of disabled extension folder names.\nDisabled extensions remain installed on disk, but are not loaded at server startup.")]
     [SettingHidden]
     public List<string> DisabledExtensions = [];
@@ -352,6 +356,10 @@ public class Settings : AutoConfiguration
         [ConfigComment("Root path for output files (images, etc).\nDefaults to 'Output'\nAbsolute paths work too.")]
         public string OutputPath = "Output";
 
+        /// <summary>Root filesystem path for video output.</summary>
+        [ConfigComment("Root path for generated video files.\nDefaults to 'OutputVideos'\nAbsolute paths work too.")]
+        public string VideoOutputPath = "OutputVideos";
+
         [ConfigComment("The folder for wildcard (.txt) files, under Data.\nDefaults to 'Wildcards'\nAbsolute paths work too.")]
         public string WildcardsFolder = "Wildcards";
 
@@ -405,6 +413,20 @@ public class Settings : AutoConfiguration
     /// <summary>Settings per-user.</summary>
     public class User : AutoConfiguration
     {
+        /// <summary>Per-user Alibaba Cloud configuration. Empty values inherit from the server configuration and then environment.</summary>
+        public class AlibabaCloudUserData : AutoConfiguration
+        {
+            /// <summary>Optional per-user Alibaba Cloud API key override.</summary>
+            [ConfigComment("Optional Alibaba Cloud Model Studio API key for this user.\nIf empty, the server key is used, then the ALIBABA_TOKEN_PLAN_API_KEY environment variable.")]
+            [ValueIsSecret]
+            public string APIKey = "";
+
+        }
+
+        /// <summary>Per-user Alibaba Cloud settings.</summary>
+        [ConfigComment("Settings for Alibaba Cloud Model Studio generation. Empty values inherit from the server configuration.")]
+        public AlibabaCloudUserData AlibabaCloud = new();
+
         public class OutPath : AutoConfiguration
         {
             [ConfigComment("Builder for output file paths. Can use auto-filling placeholders like '[model]' for the model name, '[prompt]' for a snippet of prompt text, etc.\n"
@@ -756,6 +778,27 @@ Guidelines:
 
         [ConfigComment($"Optional JSON data to send with the Discord webhook.\nThis should be a JSON object, eg '{{\"username\": \"SwarmUI\", \"content\": \"Generated image!\"}}'.\nPrefix with '[discord_image]' to upload the image directly to Discord.\nIf left blank, a default message with the image will be sent." + $"\nSee <a target=\"_blank\" href=\"{Utilities.RepoDocsRoot}Features/Webhooks.md#direct-image-on-discord\">docs Features/Webhooks</a> for info about special tags you can include.")]
         public string DiscordWebhookData = "[discord_image]\n{\n  \"username\": \"SwarmUI\"\n}";
+    }
+
+    /// <summary>Server defaults for Alibaba Cloud Model Studio generation.</summary>
+    public class AlibabaCloudData : AutoConfiguration
+    {
+        /// <summary>Server-level Alibaba Cloud API key fallback.</summary>
+        [ConfigComment("Alibaba Cloud Model Studio API key used when a user does not configure one.\nIf empty, ALIBABA_TOKEN_PLAN_API_KEY is used from the server environment.")]
+        [ValueIsSecret]
+        public string APIKey = "";
+
+        /// <summary>Root host for direct DashScope image and video API routes.</summary>
+        [ConfigComment("Direct DashScope API base URL.\nToken Plan uses https://token-plan.ap-southeast-1.maas.aliyuncs.com.\nFor pay-as-you-go, use your workspace-specific regional host without /api/v1 or /compatible-mode/v1.\nAlibaba documents Token Plan for interactive coding/agent tools and may reject other usage; confirm your plan terms before enabling it in SwarmUI.")]
+        public string BaseURL = "https://token-plan.ap-southeast-1.maas.aliyuncs.com";
+
+        /// <summary>Video task polling interval in seconds.</summary>
+        [ConfigComment("Seconds between Alibaba asynchronous video task status checks. Alibaba recommends 15 seconds.")]
+        public int VideoPollIntervalSeconds = 15;
+
+        /// <summary>Maximum local wait for a remote video task.</summary>
+        [ConfigComment("Maximum minutes to wait for an Alibaba video generation task before failing locally.")]
+        public int VideoTimeoutMinutes = 15;
     }
 
     /// <summary>UI-related settings.</summary>

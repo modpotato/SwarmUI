@@ -497,6 +497,7 @@ public static class OutputMetadataTracker
             }
         }
         ClearFolder(Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, Program.ServerSettings.Paths.OutputPath));
+        ClearFolder(Utilities.CombinePathWithAbsolute(Environment.CurrentDirectory, Program.ServerSettings.Paths.VideoOutputPath));
         ClearFolder(Program.DataDir);
     }
 }
