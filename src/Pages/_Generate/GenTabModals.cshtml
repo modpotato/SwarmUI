@@ -51,8 +51,15 @@
         <button type="button" class="btn btn-primary basic-button translate" onclick="promptPlusButton.regionModalSubmit()">Add</button>
     </div>
 @WebUtil.ModalFooter()
-@WebUtil.ModalHeader("llm_prompt_refine_modal", "Prompt LLM")
-    <div class="modal-body">
+<div id="llm_prompt_refine_modal" class="prompt-llm-widget" style="display: none;">
+    <div class="prompt-llm-header" id="prompt_llm_header" onmousedown="promptLLM.startDrag(event)">
+        <span class="prompt-llm-title translate">Prompt LLM</span>
+        <div class="prompt-llm-header-buttons">
+            <button class="prompt-llm-header-btn" onclick="promptLLM.toggleMinimize()" title="Minimize/Expand">_</button>
+            <button class="prompt-llm-header-btn" onclick="promptLLM.hide()" title="Close">&times;</button>
+        </div>
+    </div>
+    <div class="prompt-llm-body" id="prompt_llm_body">
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs" id="promptLLMTabs" role="tablist" style="margin-bottom: 15px;">
             <li class="nav-item" role="presentation">
@@ -241,13 +248,15 @@
             </div>
         </div>
     </div>
-    <div class="modal-footer">
+    <div class="prompt-llm-footer">
         <span id="llm_refine_modal_error" class="modal_error_bottom"></span>
-        <button type="button" class="btn btn-primary basic-button translate" id="llm_action_button" onclick="promptLLM.executeAction()">Execute</button>
-        <button type="button" class="btn btn-success basic-button translate" id="llm_apply_button" onclick="promptLLM.applyResult()" style="display: none;">Apply</button>
-        <button type="button" class="btn btn-secondary basic-button translate" onclick="$('#llm_prompt_refine_modal').modal('hide')">Close</button>
+        <div class="prompt-llm-footer-buttons">
+            <button type="button" class="btn btn-primary basic-button translate" id="llm_action_button" onclick="promptLLM.executeAction()">Execute</button>
+            <button type="button" class="btn btn-success basic-button translate" id="llm_apply_button" onclick="promptLLM.applyResult()" style="display: none;">Apply</button>
+            <button type="button" class="btn btn-secondary basic-button translate" onclick="promptLLM.hide()">Close</button>
+        </div>
     </div>
-@WebUtil.ModalFooter()
+</div>
 
 <!-- =================================== Installer Modals =================================== -->
 

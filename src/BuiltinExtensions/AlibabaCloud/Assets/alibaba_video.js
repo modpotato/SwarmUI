@@ -12,13 +12,150 @@ class AlibabaVideoTab {
         this.status = getRequiredElementById('alibaba_video_status');
         this.result = getRequiredElementById('alibaba_video_result');
         this.history = getRequiredElementById('alibaba_video_history');
+        this.selectedRefsDiv = getRequiredElementById('alibaba_video_selected_refs');
         this.socket = null;
+        this.browserSelectedImages = [];
+        this.imageBrowser = null;
         this.model.addEventListener('change', () => this.updateReferenceMode());
         this.generateButton.addEventListener('click', () => this.generate());
         this.interruptButton.addEventListener('click', () => this.interrupt());
         getRequiredElementById('alibaba_video_refresh').addEventListener('click', () => this.loadHistory());
         getRequiredElementById('maintab_generatevideo').addEventListener('click', () => this.loadHistory());
+        getRequiredElementById('alibaba_video_browse_history').addEventListener('click', () => this.openImageBrowser());
+        getRequiredElementById('alibaba_video_browser_close').addEventListener('click', () => this.closeImageBrowser());
+        getRequiredElementById('alibaba_video_browser_confirm').addEventListener('click', () => this.confirmBrowserSelection());
+        getRequiredElementById('alibaba_video_prompt_plus').addEventListener('click', (e) => this.showPromptMenu(e));
         this.updateReferenceMode();
+    }
+
+    /** Shows the prompt LLM menu for the video prompt. */
+    showPromptMenu(e) {
+        let rect = e.target.getBoundingClientRect();
+        let buttons = [
+            { key: 'llm_refine', label: 'Prompt LLM', title: 'Open Prompt LLM to refine or generate a video prompt', action: () => promptLLM.openModal(this.prompt) }
+        ];
+        new AdvancedPopover('alibaba_video_prompt_menu', buttons, true, rect.x, rect.y + rect.height + 2, e.target.parentElement, null, null, 250);
+    }
+
+    /** Opens the embedded image history browser modal. */
+    openImageBrowser() {
+        let modal = getRequiredElementById('alibaba_video_image_browser_modal');
+        modal.style.display = 'flex';
+        if (!this.imageBrowser) {
+            this.imageBrowser = new GenPageBrowserClass('alibaba_video_browser_container',
+                (path, isRefresh, callback, depth) => this.listImagesForBrowser(path, isRefresh, callback, depth),
+                'alibaba_video_image_browser', 'Thumbnails',
+                (image) => this.describeBrowserImage(image),
+                (image, div) => this.selectBrowserImage(image, div),
+                '', 3);
+            this.imageBrowser.allowMultiSelect = true;
+        }
+        this.imageBrowser.navigate('');
+    }
+
+    /** Closes the image browser modal. */
+    closeImageBrowser() {
+        getRequiredElementById('alibaba_video_image_browser_modal').style.display = 'none';
+    }
+
+    /** Lists images from the output history for the browser. */
+    listImagesForBrowser(path, isRefresh, callback, depth) {
+        genericRequest('ListImages', { path: path, depth: depth, sortBy: 'Date', sortReverse: false }, data => {
+            let folders = data.folders ?? [];
+            let files = (data.files ?? []).filter(f => {
+                let lower = f.src.toLowerCase();
+                return lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp');
+            });
+            let mapped = files.map(file => {
+                let fullSrc = `${getImageOutPrefix()}/${file.src}`;
+                return { name: file.src, data: { src: fullSrc, fullsrc: fullSrc, name: file.src, metadata: file.metadata ?? '' } };
+            });
+            callback(folders, mapped);
+        });
+    }
+
+    /** Describes an image for the browser tile display. */
+    describeBrowserImage(image) {
+        return {
+            name: image.data.name,
+            description: '',
+            buttons: [],
+            image: `${image.data.src}?preview=true`,
+            dragimage: image.data.src,
+            className: '',
+            searchable: image.data.name,
+            display: 'block'
+        };
+    }
+
+    /** Handles image selection in the browser. */
+    selectBrowserImage(image, div) {
+        let src = image.data.src;
+        let idx = this.browserSelectedImages.findIndex(s => s == src);
+        if (idx >= 0) {
+            this.browserSelectedImages.splice(idx, 1);
+            div.classList.remove('alibaba-video-browser-selected');
+        }
+        else {
+            this.browserSelectedImages.push(src);
+            div.classList.add('alibaba-video-browser-selected');
+        }
+        getRequiredElementById('alibaba_video_browser_count').textContent = `${this.browserSelectedImages.length} selected`;
+    }
+
+    /** Confirms the browser selection and adds images as references. */
+    async confirmBrowserSelection() {
+        for (let src of this.browserSelectedImages) {
+            try {
+                let response = await fetch(src);
+                let blob = await response.blob();
+                let dataUrl = await new Promise((resolve, reject) => {
+                    let reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Failed to read image'));
+                    reader.readAsDataURL(blob);
+                });
+                this.addSelectedRef(dataUrl, src.split('/').pop());
+            }
+            catch (error) {
+                showError(`Failed to load image: ${error.message}`);
+            }
+        }
+        this.browserSelectedImages = [];
+        getRequiredElementById('alibaba_video_browser_count').textContent = '0 selected';
+        this.closeImageBrowser();
+    }
+
+    /** Adds a reference image thumbnail to the selected refs display. */
+    addSelectedRef(dataUrl, name) {
+        let item = createDiv(null, 'alibaba-video-ref-thumb');
+        item.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(name)}" /><button class="alibaba-video-ref-remove" title="Remove">&times;</button><div class="alibaba-video-ref-name">${escapeHtml(name)}</div>`;
+        item.querySelector('.alibaba-video-ref-remove').addEventListener('click', () => {
+            item.remove();
+            this.syncFileInput();
+        });
+        item.dataset.dataUrl = dataUrl;
+        this.selectedRefsDiv.append(item);
+        this.syncFileInput();
+    }
+
+    /** Syncs the file input with browser-selected images so generate() picks them up. */
+    syncFileInput() {
+        let dataTransfer = new DataTransfer();
+        for (let item of this.selectedRefsDiv.querySelectorAll('.alibaba-video-ref-thumb')) {
+            let dataUrl = item.dataset.dataUrl;
+            let name = item.querySelector('.alibaba-video-ref-name')?.textContent ?? 'image.png';
+            let byteString = atob(dataUrl.split(',')[1]);
+            let mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            let ab = new ArrayBuffer(byteString.length);
+            let ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            let blob = new Blob([ab], { type: mimeString });
+            dataTransfer.items.add(new File([blob], name, { type: mimeString }));
+        }
+        this.references.files = dataTransfer.files;
     }
 
     /** Updates reference-image requirements for the selected HappyHorse mode. */
@@ -27,17 +164,18 @@ class AlibabaVideoTab {
         if (model.endsWith('-t2v')) {
             this.referenceWrap.style.display = 'none';
             this.references.value = '';
+            this.selectedRefsDiv.innerHTML = '';
         }
         else {
             this.referenceWrap.style.display = '';
             if (model.endsWith('-i2v')) {
                 this.referenceLabel.textContent = 'First Frame Image';
-                this.referenceHint.textContent = 'Upload exactly one image (PNG, JPEG, or WebP).';
+                this.referenceHint.textContent = 'Upload exactly one image (PNG, JPEG, or WebP), or pick from history.';
                 this.references.multiple = false;
             }
             else {
                 this.referenceLabel.textContent = 'Reference Images';
-                this.referenceHint.textContent = 'Upload 1–9 images. Refer to them as [Image 1], [Image 2], and so on in the prompt.';
+                this.referenceHint.textContent = 'Upload 1–9 images, or pick from history. Refer to them as [Image 1], [Image 2], etc.';
                 this.references.multiple = true;
             }
         }

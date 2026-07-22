@@ -10,7 +10,10 @@
             </select>
         </label>
         <label class="alibaba-video-field alibaba-video-prompt-field">
-            <span class="translate">Prompt</span>
+            <span class="alibaba-video-prompt-label-row">
+                <span class="translate">Prompt</span>
+                <button id="alibaba_video_prompt_plus" class="basic-button alibaba-video-plus-btn" title="Prompt LLM">+</button>
+            </span>
             <textarea id="alibaba_video_prompt" rows="8" placeholder="Describe the scene, motion, camera, and audio..."></textarea>
         </label>
         <div class="alibaba-video-field-row">
@@ -38,11 +41,15 @@
                 <input id="alibaba_video_duration" type="number" min="3" max="15" step="1" value="5" />
             </label>
         </div>
-        <label class="alibaba-video-field" id="alibaba_video_references_wrap">
-            <span id="alibaba_video_references_label" class="translate">Reference Images</span>
+        <div class="alibaba-video-field" id="alibaba_video_references_wrap">
+            <span class="alibaba-video-ref-label-row">
+                <span id="alibaba_video_references_label" class="translate">Reference Images</span>
+                <button id="alibaba_video_browse_history" class="basic-button alibaba-video-browse-btn translate" title="Browse image history">Browse History</button>
+            </span>
             <input id="alibaba_video_references" type="file" accept="image/png,image/jpeg,image/webp" multiple />
             <small id="alibaba_video_references_hint"></small>
-        </label>
+            <div id="alibaba_video_selected_refs" class="alibaba-video-selected-refs"></div>
+        </div>
         <div class="alibaba-video-actions">
             <button id="alibaba_video_generate" class="basic-button translate">Generate Video</button>
             <button id="alibaba_video_interrupt" class="interrupt-button translate">Interrupt</button>
@@ -62,4 +69,15 @@
         </div>
         <div id="alibaba_video_history" class="alibaba-video-history"></div>
     </section>
+</div>
+<div id="alibaba_video_image_browser_modal" class="alibaba-video-browser-modal" style="display: none;">
+    <div class="alibaba-video-browser-modal-header">
+        <span class="translate">Select Reference Images</span>
+        <button id="alibaba_video_browser_close" class="basic-button">&times;</button>
+    </div>
+    <div id="alibaba_video_browser_container" class="alibaba-video-browser-container"></div>
+    <div class="alibaba-video-browser-modal-footer">
+        <span id="alibaba_video_browser_count" class="translate">0 selected</span>
+        <button id="alibaba_video_browser_confirm" class="basic-button translate">Use Selected</button>
+    </div>
 </div>

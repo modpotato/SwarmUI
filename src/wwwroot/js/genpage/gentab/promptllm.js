@@ -25,6 +25,11 @@ class PromptLLM {
         this.cachedCurrentImageSrc = null;
         this.latestImageTags = '';
         this.hasImageMetadataAvailable = false;
+        this.isDragging = false;
+        this.dragOffsetX = 0;
+        this.dragOffsetY = 0;
+        this.isMinimized = false;
+        this.targetPromptBox = null;
     }
 
     /**
@@ -519,9 +524,10 @@ class PromptLLM {
     }
 
     /**
-     * Open the refinement modal and prepare the source.
+     * Open the refinement widget and prepare the source.
      */
-    openModal() {
+    openModal(targetPromptBox) {
+        this.targetPromptBox = targetPromptBox || null;
         this.initializeContextControls();
 
         // Reset UI state before loading context
@@ -547,8 +553,88 @@ class PromptLLM {
         this.updateSourceDisplay();
         this.checkVisionSupport();
 
-        // Show modal
-        $('#llm_prompt_refine_modal').modal('show');
+        // Show widget
+        this.show();
+    }
+
+    /** Show the floating widget. */
+    show() {
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        if (widget) {
+            widget.style.display = 'flex';
+        }
+    }
+
+    /** Hide the floating widget. */
+    hide() {
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        if (widget) {
+            widget.style.display = 'none';
+        }
+    }
+
+    /** Toggle the widget visibility. */
+    toggle() {
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        if (!widget) {
+            return;
+        }
+        if (widget.style.display == 'none') {
+            this.openModal();
+        }
+        else {
+            this.hide();
+        }
+    }
+
+    /** Toggle minimized state. */
+    toggleMinimize() {
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        if (!widget) {
+            return;
+        }
+        this.isMinimized = !this.isMinimized;
+        if (this.isMinimized) {
+            widget.classList.add('minimized');
+        }
+        else {
+            widget.classList.remove('minimized');
+        }
+    }
+
+    /** Begin dragging the widget. */
+    startDrag(e) {
+        if (e.target.tagName == 'BUTTON') {
+            return;
+        }
+        this.isDragging = true;
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        this.dragOffsetX = e.clientX - widget.offsetLeft;
+        this.dragOffsetY = e.clientY - widget.offsetTop;
+        document.addEventListener('mousemove', (ev) => this.onDrag(ev));
+        document.addEventListener('mouseup', () => this.stopDrag());
+        e.preventDefault();
+    }
+
+    /** Handle drag movement. */
+    onDrag(e) {
+        if (!this.isDragging) {
+            return;
+        }
+        let widget = document.getElementById('llm_prompt_refine_modal');
+        let newX = e.clientX - this.dragOffsetX;
+        let newY = e.clientY - this.dragOffsetY;
+        newX = Math.max(0, Math.min(newX, window.innerWidth - 100));
+        newY = Math.max(0, Math.min(newY, window.innerHeight - 44));
+        widget.style.left = newX + 'px';
+        widget.style.top = newY + 'px';
+    }
+
+    /** Stop dragging. */
+    stopDrag() {
+        this.isDragging = false;
+        document.removeEventListener('mousemove', (ev) => this.onDrag(ev));
+        document.removeEventListener('mouseup', () => this.stopDrag());
     }
 
     /**
@@ -1506,14 +1592,13 @@ class PromptLLM {
             return;
         }
 
-        let promptBox = document.getElementById('alt_prompt_textbox');
+        let promptBox = this.targetPromptBox || document.getElementById('alt_prompt_textbox');
         if (promptBox) {
             promptBox.value = this.generatedPrompt;
             triggerChangeFor(promptBox);
         }
 
-        // Close the modal
-        $('#llm_prompt_refine_modal').modal('hide');
+        this.hide();
     }
 
     /**
@@ -1525,14 +1610,13 @@ class PromptLLM {
             return;
         }
 
-        let promptBox = document.getElementById('alt_prompt_textbox');
+        let promptBox = this.targetPromptBox || document.getElementById('alt_prompt_textbox');
         if (promptBox) {
             promptBox.value = this.blendedPrompt;
             triggerChangeFor(promptBox);
         }
 
-        // Close the modal
-        $('#llm_prompt_refine_modal').modal('hide');
+        this.hide();
     }
 
     /**
@@ -1544,14 +1628,13 @@ class PromptLLM {
             return;
         }
 
-        let promptBox = document.getElementById('alt_prompt_textbox');
+        let promptBox = this.targetPromptBox || document.getElementById('alt_prompt_textbox');
         if (promptBox) {
             promptBox.value = this.refinedPrompt;
             triggerChangeFor(promptBox);
         }
 
-        // Close the modal
-        $('#llm_prompt_refine_modal').modal('hide');
+        this.hide();
     }
 
     /**
