@@ -220,7 +220,7 @@ public class Program
                 }
                 else if (tags.IsEmpty())
                 {
-                    Logs.Error($"Swarm failed to check for updates! Tag list empty?!");
+                    Logs.Warning($"Swarm failed to check for updates! Tag list empty?!");
                 }
                 else
                 {

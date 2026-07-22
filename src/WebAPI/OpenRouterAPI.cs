@@ -49,7 +49,7 @@ public static class OpenRouterAPI
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             request.Headers.UserAgent.Clear();
             request.Headers.UserAgent.ParseAdd("SwarmUI/1.0");
-            
+
             HttpResponseMessage response = await httpClient.SendAsync(request);
             string content = await response.Content.ReadAsStringAsync();
 
@@ -61,7 +61,7 @@ public static class OpenRouterAPI
 
             JObject result = JObject.Parse(content);
             JArray models = result["data"] as JArray;
-            
+
             if (models == null)
             {
                 return new JObject() { ["error"] = "Invalid response from OpenRouter API" };
@@ -80,10 +80,10 @@ public static class OpenRouterAPI
                     // Common vision model indicators
                     supportsVision = archStr.Contains("vision") || archStr.Contains("multimodal");
                 }
-                
+
                 // Also check model ID for vision indicators
                 string modelId = model["id"]?.ToString() ?? "";
-                if (modelId.Contains("vision") || modelId.Contains("gpt-4") || modelId.Contains("claude-3") || 
+                if (modelId.Contains("vision") || modelId.Contains("gpt-4") || modelId.Contains("claude-3") ||
                     modelId.Contains("gemini") || modelId.Contains("pixtral"))
                 {
                     supportsVision = true;
@@ -430,7 +430,7 @@ public static class OpenRouterAPI
 
             JObject result = JObject.Parse(content);
             JToken messageToken = result["choices"]?[0]?["message"];
-            
+
             if (messageToken == null)
             {
                 return new JObject() { ["error"] = "Invalid response from OpenRouter API" };
@@ -455,7 +455,7 @@ public static class OpenRouterAPI
                     {
                         string functionName = function["name"]?.ToString();
                         string argumentsStr = function["arguments"]?.ToString();
-                        
+
                         if (!string.IsNullOrWhiteSpace(functionName))
                         {
                             JObject parsedCall = new()

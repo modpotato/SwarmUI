@@ -66,9 +66,9 @@ public class ModelDependencyResolver
             // Try to find by SHA256 hash
             if (!string.IsNullOrEmpty(dependency.Sha256))
             {
-                foreach (var model in handler.Models.Values)
+                foreach (T2IModel model in handler.Models.Values)
                 {
-                    if (model.Metadata?.Hash != null && 
+                    if (model.Metadata?.Hash != null &&
                         model.Metadata.Hash.Equals(dependency.Sha256, StringComparison.OrdinalIgnoreCase))
                     {
                         dependency.Status = DependencyStatus.Resolved;
@@ -83,7 +83,7 @@ public class ModelDependencyResolver
             if (!string.IsNullOrEmpty(dependency.Filename))
             {
                 string searchKey = dependency.Filename;
-                
+
                 // Try exact match
                 if (handler.Models.TryGetValue(searchKey, out T2IModel model))
                 {
@@ -94,7 +94,7 @@ public class ModelDependencyResolver
                 }
 
                 // Try with .safetensors extension
-                if (!searchKey.EndsWith(".safetensors") && 
+                if (!searchKey.EndsWith(".safetensors") &&
                     handler.Models.TryGetValue(searchKey + ".safetensors", out model))
                 {
                     dependency.Status = DependencyStatus.Resolved;
@@ -104,9 +104,9 @@ public class ModelDependencyResolver
                 }
 
                 // Try partial match (case-insensitive)
-                var partialMatch = handler.Models.Values.FirstOrDefault(m => 
+                T2IModel partialMatch = handler.Models.Values.FirstOrDefault(m =>
                     m.Name.Contains(searchKey, StringComparison.OrdinalIgnoreCase));
-                
+
                 if (partialMatch != null)
                 {
                     dependency.Status = DependencyStatus.Resolved;

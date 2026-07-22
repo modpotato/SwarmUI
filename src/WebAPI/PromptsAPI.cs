@@ -44,7 +44,7 @@ public static class PromptsAPI
         try
         {
             JObject promptData = JObject.Parse(payload);
-            
+
             // Create a new import job
             string jobId = Guid.NewGuid().ToString();
             ImportJob job = new()

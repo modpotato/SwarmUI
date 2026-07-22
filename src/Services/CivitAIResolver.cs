@@ -13,7 +13,7 @@ public class CivitAIResolver
 {
     private readonly Session _session;
     private static readonly HttpClient _httpClient = new();
-    
+
     /// <summary>ASCII matcher for sanitizing API tokens.</summary>
     private static readonly AsciiMatcher TokenTextLimiter = new(AsciiMatcher.BothCaseLetters + AsciiMatcher.Digits + " -_.,/");
 
@@ -78,7 +78,7 @@ public class CivitAIResolver
             // The actual download would be triggered via existing download infrastructure
             dependency.Status = DependencyStatus.DownloadScheduled;
             dependency.ResolvedSource = "civitai";
-            
+
             // Store metadata for download
             if (modelInfo.TryGetValue("name", out JToken nameToken))
             {
@@ -101,16 +101,16 @@ public class CivitAIResolver
         try
         {
             string url = $"https://civitai.com/api/v1/model-versions/by-hash/{sha256}";
-            
+
             // CivitAI uses URL query parameter for authentication, not Bearer token
             if (!string.IsNullOrEmpty(apiKey))
             {
                 url += $"?token={TokenTextLimiter.TrimToMatches(apiKey)}";
             }
-            
+
             HttpRequestMessage request = new(HttpMethod.Get, url);
             HttpResponseMessage response = await _httpClient.SendAsync(request);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -118,7 +118,7 @@ public class CivitAIResolver
                     Logs.Debug($"Model not found on CivitAI for hash: {sha256}");
                     return null;
                 }
-                
+
                 Logs.Warning($"CivitAI API error: {response.StatusCode}");
                 return null;
             }
@@ -139,16 +139,16 @@ public class CivitAIResolver
         try
         {
             string url = $"https://civitai.com/api/v1/model-versions/{versionId}";
-            
+
             // CivitAI uses URL query parameter for authentication, not Bearer token
             if (!string.IsNullOrEmpty(apiKey))
             {
                 url += $"?token={TokenTextLimiter.TrimToMatches(apiKey)}";
             }
-            
+
             HttpRequestMessage request = new(HttpMethod.Get, url);
             HttpResponseMessage response = await _httpClient.SendAsync(request);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -156,7 +156,7 @@ public class CivitAIResolver
                     Logs.Debug($"Model not found on CivitAI for version ID: {versionId}");
                     return null;
                 }
-                
+
                 Logs.Warning($"CivitAI API error: {response.StatusCode}");
                 return null;
             }
@@ -178,7 +178,7 @@ public class CivitAIResolver
         {
             // Get license settings from server configuration
             CivitAISettings settings = Program.ServerSettings.CivitAI;
-            
+
             if (settings == null)
             {
                 // No license restrictions configured, allow by default
@@ -199,16 +199,16 @@ public class CivitAIResolver
                 if (model.TryGetValue("allowCommercialUse", out JToken commercialToken))
                 {
                     string commercialUse = commercialToken.ToString().ToLowerFast();
-                    
+
                     // If we have an allowed licenses list, check it
                     if (settings.AllowedLicenses != null && settings.AllowedLicenses.Count > 0)
                     {
                         bool licenseAllowed = false;
-                        
+
                         foreach (string allowedLicense in settings.AllowedLicenses)
                         {
                             string normalizedAllowed = allowedLicense.ToLowerFast();
-                            
+
                             // Map common license terms
                             if (normalizedAllowed.Contains("commercial") && commercialUse != "none")
                             {
@@ -226,7 +226,7 @@ public class CivitAIResolver
                                 break;
                             }
                         }
-                        
+
                         if (!licenseAllowed)
                         {
                             Logs.Info($"Model license '{commercialUse}' not in allowed list");
@@ -259,10 +259,10 @@ public class CivitAIResolver
                 {
                     if (fileToken is JObject file)
                     {
-                        bool isPrimary = file.TryGetValue("primary", out JToken primaryToken) && 
-                                       primaryToken.Type == JTokenType.Boolean && 
+                        bool isPrimary = file.TryGetValue("primary", out JToken primaryToken) &&
+                                       primaryToken.Type == JTokenType.Boolean &&
                                        (bool)primaryToken;
-                        
+
                         if (isPrimary || files.Count == 1)
                         {
                             if (file.TryGetValue("downloadUrl", out JToken urlToken))

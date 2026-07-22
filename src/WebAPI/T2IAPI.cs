@@ -878,7 +878,7 @@ public static class T2IAPI
         return await Task.Run(() =>
         {
             // Recursive enumeration
-            var files = Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories)
+            IEnumerable<string> files = Directory.EnumerateFiles(searchRoot, "*", SearchOption.AllDirectories)
                 .Where(f => HistoryExtensions.Contains(f.AfterLast('.').ToLowerFast()))
                 .Where(f => !f.Replace('\\', '/').Contains("/RecycleBin/")); // Exclude RecycleBin
 
@@ -896,9 +896,9 @@ public static class T2IAPI
             // Note: For very large collections, this might be slow. 
             // Optimization: Could cache the file list or use a more efficient way to skip/take if possible without full sort.
             // But for now, this meets the requirement of "proper recursive image loading".
-            var fileList = files.ToList();
+            List<string> fileList = files.ToList();
             int totalCount = fileList.Count;
-            var pagedFiles = fileList.Skip(offset).Take(limit).ToList();
+            List<string> pagedFiles = fileList.Skip(offset).Take(limit).ToList();
 
             JArray fileArray = new();
             bool starNoFolders = session.User.Settings.StarNoFolders;
@@ -1176,7 +1176,7 @@ public static class T2IAPI
         {
             return new JObject() { ["error"] = "Path cannot be empty." };
         }
-        
+
         bool isVideo = path.Replace('\\', '/').TrimStart('/').StartsWith("Videos/");
         string root = ResolveMediaOutputRoot(session, ref path);
         (path, string consoleError, string userError) = WebServer.CheckFilePath(root, path);
@@ -1190,22 +1190,22 @@ public static class T2IAPI
         {
             return new JObject() { ["error"] = "File not found." };
         }
-        
+
         string standardizedPath = Path.GetFullPath(path);
         string userOutput = root;
         string recycleBinRoot = Path.Combine(userOutput, "RecycleBin");
-        
+
         // Calculate relative path to preserve structure
         string relativePath = Path.GetRelativePath(userOutput, standardizedPath);
         if (relativePath.StartsWith("RecycleBin" + Path.DirectorySeparatorChar))
         {
-             return new JObject() { ["error"] = "File is already in RecycleBin." };
+            return new JObject() { ["error"] = "File is already in RecycleBin." };
         }
-        
+
         string newPath = Path.Combine(recycleBinRoot, relativePath);
         string newDir = Path.GetDirectoryName(newPath);
         Directory.CreateDirectory(newDir);
-        
+
         // Handle collisions
         if (File.Exists(newPath))
         {
@@ -1213,16 +1213,16 @@ public static class T2IAPI
             string baseName = Path.GetFileNameWithoutExtension(newPath);
             newPath = Path.Combine(newDir, $"{baseName}_{DateTime.Now:yyyyMMddHHmmss}{ext}");
         }
-        
+
         try
         {
             File.Move(standardizedPath, newPath);
             Session.RecentlyBlockedFilenames[standardizedPath] = standardizedPath;
-            
+
             // Move related files
             string oldFileBase = standardizedPath.BeforeLast('.');
             string newFileBase = newPath.BeforeLast('.');
-            
+
             foreach (string str in DeletableFileExtensions)
             {
                 string altFile = $"{oldFileBase}{str}";
@@ -1232,10 +1232,10 @@ public static class T2IAPI
                     File.Move(altFile, newAltFile);
                 }
             }
-            
+
             OutputMetadataTracker.RemoveMetadataFor(standardizedPath);
             OutputMetadataTracker.RemoveMetadataFor(newPath); // Ensure clean state
-            
+
             string relativeNewPath = Path.GetRelativePath(userOutput, newPath);
             return new JObject() { ["success"] = true, ["new_path"] = isVideo ? $"Videos/{relativeNewPath.Replace('\\', '/')}" : relativeNewPath };
         }

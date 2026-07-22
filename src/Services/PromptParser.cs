@@ -67,7 +67,7 @@ public static class PromptParser
         }
 
         // Check for ComfyUI workflow structure
-        if (data.ContainsKey("nodes") || data.ContainsKey("workflow") || 
+        if (data.ContainsKey("nodes") || data.ContainsKey("workflow") ||
             (data.Properties().Any(p => p.Value is JObject obj && obj.ContainsKey("class_type"))))
         {
             return "comfyui";
@@ -180,7 +180,7 @@ public static class PromptParser
             JObject workflow = data.TryGetValue("workflow", out JToken workflowToken) && workflowToken is JObject wf ? wf : data;
 
             // Iterate through all nodes in the workflow
-            foreach (var prop in workflow.Properties())
+            foreach (JProperty prop in workflow.Properties())
             {
                 if (prop.Value is JObject node)
                 {

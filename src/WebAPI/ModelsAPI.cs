@@ -995,12 +995,36 @@ public static class ModelsAPI
             if (model.Metadata is not null)
             {
                 JObject metadata = new();
-                if (!string.IsNullOrWhiteSpace(model.Metadata.Author)) metadata["author"] = model.Metadata.Author;
-                if (!string.IsNullOrWhiteSpace(model.Metadata.License)) metadata["license"] = model.Metadata.License;
-                if (!string.IsNullOrWhiteSpace(model.Metadata.Date)) metadata["date"] = model.Metadata.Date;
-                if (!string.IsNullOrWhiteSpace(model.Metadata.UsageHint)) metadata["usage_hint"] = model.Metadata.UsageHint;
-                if (!string.IsNullOrWhiteSpace(model.Metadata.TriggerPhrase)) metadata["trigger_phrase"] = model.Metadata.TriggerPhrase;
-                if (model.Metadata.Tags is not null && model.Metadata.Tags.Length > 0) metadata["tags"] = JArray.FromObject(model.Metadata.Tags);
+                if (!string.IsNullOrWhiteSpace(model.Metadata.Author))
+                {
+                    metadata["author"] = model.Metadata.Author;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Metadata.License))
+                {
+                    metadata["license"] = model.Metadata.License;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Metadata.Date))
+                {
+                    metadata["date"] = model.Metadata.Date;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Metadata.UsageHint))
+                {
+                    metadata["usage_hint"] = model.Metadata.UsageHint;
+                }
+
+                if (!string.IsNullOrWhiteSpace(model.Metadata.TriggerPhrase))
+                {
+                    metadata["trigger_phrase"] = model.Metadata.TriggerPhrase;
+                }
+
+                if (model.Metadata.Tags is not null && model.Metadata.Tags.Length > 0)
+                {
+                    metadata["tags"] = JArray.FromObject(model.Metadata.Tags);
+                }
+
                 if (metadata.Count > 0)
                 {
                     modelData["metadata"] = metadata;

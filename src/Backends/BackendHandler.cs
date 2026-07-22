@@ -1233,7 +1233,7 @@ public class BackendHandler
                         b.Backend.Status == BackendStatus.RUNNING ||
                         b.Backend.Status == BackendStatus.LOADING ||
                         b.Backend.Status == BackendStatus.WAITING);
-                    
+
                     if (Program.ServerSettings.Backends.PauseOnOutage && !anyBackendCanProgress)
                     {
                         // Enter or maintain pause mode
@@ -1243,13 +1243,13 @@ public class BackendHandler
                             OutagePauseStartTime = Environment.TickCount64;
                             Logs.Warning($"[BackendHandler] Entering outage pause mode for {T2IBackendRequests.Count} pending requests. Waiting for backends to recover.");
                         }
-                        
+
                         // Check if we've exceeded the pause TTL
                         if (Program.ServerSettings.Backends.OutagePauseTTLMinutes > 0)
                         {
                             long pauseDuration = Environment.TickCount64 - OutagePauseStartTime;
                             long maxPauseDuration = Program.ServerSettings.Backends.OutagePauseTTLMinutes * 60 * 1000;
-                            
+
                             if (pauseDuration > maxPauseDuration)
                             {
                                 // TTL exceeded, fail all requests
