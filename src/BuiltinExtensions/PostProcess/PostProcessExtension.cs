@@ -1,9 +1,11 @@
+using FreneticUtilities.FreneticExtensions;
 using Newtonsoft.Json.Linq;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
-using SkiaSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
 
 namespace SwarmUI.Builtin_PostProcessExtension;
@@ -27,6 +29,41 @@ public class PostProcessExtension : Extension
         API.RegisterAPICall(PostProcessAndSave, true, Permissions.BasicImageGeneration);
     }
 
+    /// <summary>Applies a lighten-blend watermark overlay to a base image at the given opacity.</summary>
+    private static void ApplyLightenOverlay(Image<Rgba32> baseImg, Image<Rgba32> wmImg, int originX, int originY, float opacity)
+    {
+        for (int wy = 0; wy < wmImg.Height; wy++)
+        {
+            for (int wx = 0; wx < wmImg.Width; wx++)
+            {
+                int px = originX + wx;
+                int py = originY + wy;
+                Rgba32 basePixel = baseImg[px, py];
+                Rgba32 wmPixel = wmImg[wx, wy];
+                byte r = Math.Max(basePixel.R, wmPixel.R);
+                byte g = Math.Max(basePixel.G, wmPixel.G);
+                byte b = Math.Max(basePixel.B, wmPixel.B);
+                baseImg[px, py] = new Rgba32(
+                    (byte)(basePixel.R + (r - basePixel.R) * opacity),
+                    (byte)(basePixel.G + (g - basePixel.G) * opacity),
+                    (byte)(basePixel.B + (b - basePixel.B) * opacity),
+                    basePixel.A);
+            }
+        }
+    }
+
+    /// <summary>Computes the overlay origin for a given corner placement.</summary>
+    private static (int, int) ComputeOrigin(int baseW, int baseH, int wmW, int wmH, string corner)
+    {
+        return corner switch
+        {
+            "top-left" => (0, 0),
+            "top-right" => (baseW - wmW, 0),
+            "bottom-left" => (0, baseH - wmH),
+            _ => (baseW - wmW, baseH - wmH)
+        };
+    }
+
     /// <summary>Applies a transparent lighten-blend watermark to an image.</summary>
     public static async Task<JObject> ApplyWatermark(Session session, string image, int alpha = 10, string corner = "bottom-right")
     {
@@ -36,59 +73,17 @@ public class PostProcessExtension : Extension
             return new JObject() { ["error"] = "No watermark image found. Place a PNG at Data/watermark.png." };
         }
         byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
-        using SKBitmap baseBitmap = SKBitmap.Decode(imageBytes);
-        if (baseBitmap is null)
-        {
-            return new JObject() { ["error"] = "Failed to decode source image." };
-        }
-        using SKBitmap watermarkBitmap = SKBitmap.Decode(watermarkPath);
-        if (watermarkBitmap is null)
-        {
-            return new JObject() { ["error"] = "Failed to decode watermark image." };
-        }
-        if (watermarkBitmap.Width > baseBitmap.Width || watermarkBitmap.Height > baseBitmap.Height)
+        using Image<Rgba32> baseImg = Image.Load<Rgba32>(imageBytes);
+        using Image<Rgba32> wmImg = Image.Load<Rgba32>(watermarkPath);
+        if (wmImg.Width > baseImg.Width || wmImg.Height > baseImg.Height)
         {
             return new JObject() { ["error"] = "Watermark image is larger than the source image." };
         }
-        int originX = 0, originY = 0;
-        switch (corner)
-        {
-            case "top-left":
-                break;
-            case "top-right":
-                originX = baseBitmap.Width - watermarkBitmap.Width;
-                break;
-            case "bottom-left":
-                originY = baseBitmap.Height - watermarkBitmap.Height;
-                break;
-            default:
-                originX = baseBitmap.Width - watermarkBitmap.Width;
-                originY = baseBitmap.Height - watermarkBitmap.Height;
-                break;
-        }
-        float opacity = Math.Clamp(alpha, 1, 255) / 255f;
-        using SKBitmap result = baseBitmap.Copy();
-        for (int wy = 0; wy < watermarkBitmap.Height; wy++)
-        {
-            for (int wx = 0; wx < watermarkBitmap.Width; wx++)
-            {
-                int px = originX + wx;
-                int py = originY + wy;
-                SKColor basePixel = result.GetPixel(px, py);
-                SKColor wmPixel = watermarkBitmap.GetPixel(wx, wy);
-                byte r = Math.Max(basePixel.Red, wmPixel.Red);
-                byte g = Math.Max(basePixel.Green, wmPixel.Green);
-                byte b = Math.Max(basePixel.Blue, wmPixel.Blue);
-                SKColor lightened = new(r, g, b, basePixel.Alpha);
-                byte finalR = (byte)(basePixel.Red + (lightened.Red - basePixel.Red) * opacity);
-                byte finalG = (byte)(basePixel.Green + (lightened.Green - basePixel.Green) * opacity);
-                byte finalB = (byte)(basePixel.Blue + (lightened.Blue - basePixel.Blue) * opacity);
-                result.SetPixel(px, py, new SKColor(finalR, finalG, finalB, basePixel.Alpha));
-            }
-        }
-        using SKImage skImage = SKImage.FromBitmap(result);
-        using SKData encoded = skImage.Encode(SKEncodedImageFormat.Png, 100);
-        string base64 = Convert.ToBase64String(encoded.ToArray());
+        (int originX, int originY) = ComputeOrigin(baseImg.Width, baseImg.Height, wmImg.Width, wmImg.Height, corner);
+        ApplyLightenOverlay(baseImg, wmImg, originX, originY, Math.Clamp(alpha, 1, 255) / 255f);
+        using MemoryStream ms = new();
+        await baseImg.SaveAsPngAsync(ms);
+        string base64 = Convert.ToBase64String(ms.ToArray());
         return new JObject() { ["image"] = $"data:image/png;base64,{base64}" };
     }
 
@@ -182,43 +177,15 @@ public class PostProcessExtension : Extension
     public static async Task<JObject> PostProcessAndSave(Session session, string image, string tags, int alpha = 10, string corner = "bottom-right", string filename = "")
     {
         byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
-        using SKBitmap baseBitmap = SKBitmap.Decode(imageBytes);
-        if (baseBitmap is null)
-        {
-            return new JObject() { ["error"] = "Failed to decode source image." };
-        }
+        using Image<Rgba32> baseImg = Image.Load<Rgba32>(imageBytes);
         string watermarkPath = Path.Combine(Utilities.DataDirectory, "watermark.png");
         if (File.Exists(watermarkPath))
         {
-            using SKBitmap watermarkBitmap = SKBitmap.Decode(watermarkPath);
-            if (watermarkBitmap is not null && watermarkBitmap.Width <= baseBitmap.Width && watermarkBitmap.Height <= baseBitmap.Height)
+            using Image<Rgba32> wmImg = Image.Load<Rgba32>(watermarkPath);
+            if (wmImg.Width <= baseImg.Width && wmImg.Height <= baseImg.Height)
             {
-                int originX = 0, originY = 0;
-                switch (corner)
-                {
-                    case "top-left": break;
-                    case "top-right": originX = baseBitmap.Width - watermarkBitmap.Width; break;
-                    case "bottom-left": originY = baseBitmap.Height - watermarkBitmap.Height; break;
-                    default: originX = baseBitmap.Width - watermarkBitmap.Width; originY = baseBitmap.Height - watermarkBitmap.Height; break;
-                }
-                float opacity = Math.Clamp(alpha, 1, 255) / 255f;
-                for (int wy = 0; wy < watermarkBitmap.Height; wy++)
-                {
-                    for (int wx = 0; wx < watermarkBitmap.Width; wx++)
-                    {
-                        int px = originX + wx;
-                        int py = originY + wy;
-                        SKColor basePixel = baseBitmap.GetPixel(px, py);
-                        SKColor wmPixel = watermarkBitmap.GetPixel(wx, wy);
-                        byte r = Math.Max(basePixel.Red, wmPixel.Red);
-                        byte g = Math.Max(basePixel.Green, wmPixel.Green);
-                        byte b = Math.Max(basePixel.Blue, wmPixel.Blue);
-                        byte finalR = (byte)(basePixel.Red + (r - basePixel.Red) * opacity);
-                        byte finalG = (byte)(basePixel.Green + (g - basePixel.Green) * opacity);
-                        byte finalB = (byte)(basePixel.Blue + (b - basePixel.Blue) * opacity);
-                        baseBitmap.SetPixel(px, py, new SKColor(finalR, finalG, finalB, basePixel.Alpha));
-                    }
-                }
+                (int originX, int originY) = ComputeOrigin(baseImg.Width, baseImg.Height, wmImg.Width, wmImg.Height, corner);
+                ApplyLightenOverlay(baseImg, wmImg, originX, originY, Math.Clamp(alpha, 1, 255) / 255f);
             }
         }
         string outputPath = Program.ServerSettings.Paths.OutputPath;
@@ -235,9 +202,7 @@ public class PostProcessExtension : Extension
         filename = Utilities.StrictFilenameClean(filename);
         string imgPath = Path.Combine(postProcessDir, $"{filename}.png");
         string txtPath = Path.Combine(postProcessDir, $"{filename}.txt");
-        using SKImage skImage = SKImage.FromBitmap(baseBitmap);
-        using SKData encoded = skImage.Encode(SKEncodedImageFormat.Png, 100);
-        await File.WriteAllBytesAsync(imgPath, encoded.ToArray());
+        await baseImg.SaveAsPngAsync(imgPath);
         string finalTags = tags.Trim();
         if (!finalTags.Contains("ai_generated"))
         {
