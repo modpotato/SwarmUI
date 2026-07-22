@@ -1,0 +1,108 @@
+.postprocess-layout {
+    display: grid;
+    grid-template-columns: minmax(18rem, 0.9fr) minmax(14rem, 0.6fr) minmax(20rem, 1.2fr);
+    gap: 0.75rem;
+    height: 100%;
+    padding: 0.75rem;
+    background: var(--background);
+}
+
+.postprocess-panel {
+    min-width: 0;
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--light-border);
+    border-radius: 0.5rem;
+    background: var(--popup-back);
+}
+
+.postprocess-panel-title {
+    margin-bottom: 0.8rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.postprocess-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.8rem;
+}
+
+.postprocess-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.postprocess-small-btn {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.5rem;
+    cursor: pointer;
+}
+
+.postprocess-plus-btn {
+    min-width: 1.8rem;
+    padding: 0 0.4rem;
+    font-size: 1.1rem;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.postprocess-image-preview {
+    min-height: 10rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--light-border);
+    border-radius: 0.4rem;
+    overflow: hidden;
+}
+
+.postprocess-preview-img {
+    max-width: 100%;
+    max-height: 20rem;
+    object-fit: contain;
+}
+
+.postprocess-empty {
+    color: var(--text-soft);
+    text-align: center;
+    padding: 1rem;
+}
+
+.postprocess-status {
+    margin-top: 0.5rem;
+    min-height: 1.2rem;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+}
+
+.postprocess-result {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 20rem;
+}
+
+.postprocess-result-img {
+    max-width: 100%;
+    max-height: calc(100vh - 12rem);
+    object-fit: contain;
+    border-radius: 0.4rem;
+}
+
+.postprocess-actions-panel hr {
+    margin: 1rem 0;
+    border-color: var(--light-border);
+}
+
+@media (max-width: 900px) {
+    .postprocess-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: auto;
+    }
+}

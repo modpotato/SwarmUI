@@ -1,0 +1,90 @@
+<div class="postprocess-layout">
+    <section class="postprocess-panel postprocess-input-panel">
+        <div class="postprocess-panel-title translate">Post-Process</div>
+        <div class="postprocess-field">
+            <span class="postprocess-label-row">
+                <span class="translate">Source Image</span>
+                <button id="postprocess_browse_btn" class="basic-button postprocess-small-btn translate">Browse History</button>
+            </span>
+            <div id="postprocess_image_preview" class="postprocess-image-preview">
+                <div class="postprocess-empty translate">Select an image from history or upload one.</div>
+            </div>
+            <input id="postprocess_file_input" type="file" accept="image/png,image/jpeg,image/webp" style="display: none;" />
+            <button id="postprocess_upload_btn" class="basic-button postprocess-small-btn translate" style="margin-top: 0.4rem;">Upload Image</button>
+        </div>
+        <div class="postprocess-field">
+            <span class="translate">Generation Tags (from metadata)</span>
+            <textarea id="postprocess_gen_tags" class="auto-text auto-text-block" rows="2" placeholder="Prompt tags from the image metadata..."></textarea>
+        </div>
+        <div class="postprocess-field">
+            <span class="translate">LoRAs Used</span>
+            <input id="postprocess_lora_names" class="auto-text" type="text" placeholder="Comma-separated LoRA names..." />
+        </div>
+        <div class="postprocess-field">
+            <span class="translate">Inferred Tags (auto-tagger)</span>
+            <div class="postprocess-label-row">
+                <span></span>
+                <button id="postprocess_auto_tag_btn" class="basic-button postprocess-small-btn translate">Auto Tag</button>
+            </div>
+            <textarea id="postprocess_inferred_tags" class="auto-text auto-text-block" rows="2" placeholder="Tags from the automatic image tagger..."></textarea>
+        </div>
+        <div class="postprocess-field">
+            <span class="postprocess-label-row">
+                <span class="translate">LLM Tag Generation</span>
+                <button id="postprocess_llm_tag_plus" class="basic-button postprocess-plus-btn" title="Prompt LLM">+</button>
+            </span>
+            <div class="postprocess-label-row" style="margin-bottom: 0.3rem;">
+                <select id="postprocess_llm_model" class="auto-dropdown" style="flex: 1;">
+                    <option value="">Loading models...</option>
+                </select>
+                <button id="postprocess_llm_tag_btn" class="basic-button postprocess-small-btn translate">Generate Tags</button>
+            </div>
+            <span class="form-check form-switch display-inline-block">
+                <input type="checkbox" class="form-check-input" id="postprocess_include_artist" />
+                <label class="form-check-label translate" for="postprocess_include_artist">Include artist names</label>
+            </span>
+        </div>
+        <div class="postprocess-field">
+            <span class="translate">Final Tag List</span>
+            <textarea id="postprocess_final_tags" class="auto-text auto-text-block" rows="3" placeholder="Final Danbooru-format tag list..."></textarea>
+            <div class="postprocess-label-row" style="margin-top: 0.3rem;">
+                <button id="postprocess_copy_tags_btn" class="basic-button postprocess-small-btn translate">Copy Tags</button>
+                <button id="postprocess_save_tags_btn" class="basic-button postprocess-small-btn translate">Save Sidecar</button>
+            </div>
+        </div>
+    </section>
+    <section class="postprocess-panel postprocess-actions-panel">
+        <div class="postprocess-panel-title translate">Watermark</div>
+        <div class="postprocess-field">
+            <span class="translate">Overlay Alpha (1-255)</span>
+            <input id="postprocess_wm_alpha" type="number" min="1" max="255" value="10" class="auto-number" />
+        </div>
+        <div class="postprocess-field">
+            <span class="translate">Corner</span>
+            <select id="postprocess_wm_corner" class="auto-dropdown">
+                <option value="bottom-right">Bottom Right</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="top-left">Top Left</option>
+            </select>
+        </div>
+        <button id="postprocess_apply_wm_btn" class="basic-button translate" style="margin-top: 0.5rem;">Apply Watermark</button>
+        <div id="postprocess_wm_status" class="postprocess-status"></div>
+        <hr />
+        <div class="postprocess-panel-title translate">Workflow</div>
+        <div class="postprocess-field">
+            <span class="translate">ComfyUI Workflow</span>
+            <select id="postprocess_workflow_select" class="auto-dropdown">
+                <option value="">None</option>
+            </select>
+        </div>
+        <button id="postprocess_run_workflow_btn" class="basic-button translate">Run Workflow</button>
+        <div id="postprocess_workflow_status" class="postprocess-status"></div>
+    </section>
+    <section class="postprocess-panel postprocess-result-panel">
+        <div class="postprocess-panel-title translate">Result</div>
+        <div id="postprocess_result" class="postprocess-result">
+            <div class="postprocess-empty translate">Process an image to see results here.</div>
+        </div>
+    </section>
+</div>
