@@ -24,6 +24,7 @@ public class PostProcessExtension : Extension
         API.RegisterAPICall(ApplyWatermark, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(GenerateTagsWithLLM, true, Permissions.BasicImageGeneration);
         API.RegisterAPICall(SaveTextFile, true, Permissions.BasicImageGeneration);
+        API.RegisterAPICall(PostProcessAndSave, true, Permissions.BasicImageGeneration);
     }
 
     /// <summary>Applies a transparent lighten-blend watermark to an image.</summary>
@@ -100,8 +101,8 @@ public class PostProcessExtension : Extension
             return new JObject() { ["error"] = "No OpenRouter API key configured. Set it in User Settings." };
         }
         string artistInstruction = includeArtistNames
-            ? "Include artist names in the tags if identifiable."
-            : "Do NOT include any artist names, artist tags, or creator attributions in the output. Remove any artist-related tags entirely.";
+            ? $"Include artist names as tags if identifiable from the LoRAs or image. LoRAs used: {loraNames}. Derive artist tags from LoRA names where applicable."
+            : "Do NOT include any artist names, artist tags, or creator attributions in the output. Remove any artist-related tags entirely. Even if LoRAs reference an artist, omit those tags.";
         string systemPrompt = $"""
             You are an expert image tagger specializing in Danbooru-format tag lists for AI-generated artwork.
             You will receive an image along with context about how it was generated.
@@ -109,6 +110,7 @@ public class PostProcessExtension : Extension
 
             Rules:
             - Output tags as a single comma-separated line
+            - ALWAYS include the meta tag "ai_generated" in the output
             - Use underscores for multi-word tags (e.g., "long_hair" not "long hair")
             - Order: artist tags (if allowed), character tags, copyright/IP tags, general descriptor tags, meta tags
             - Be precise: only tag what is actually visible or strongly implied
@@ -174,5 +176,80 @@ public class PostProcessExtension : Extension
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
         await File.WriteAllTextAsync(fullPath, content);
         return new JObject() { ["success"] = true };
+    }
+
+    /// <summary>Full post-process pipeline: watermark, EXIF strip, save to post-process directory with tag sidecar.</summary>
+    public static async Task<JObject> PostProcessAndSave(Session session, string image, string tags, int alpha = 10, string corner = "bottom-right", string filename = "")
+    {
+        byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
+        using SKBitmap baseBitmap = SKBitmap.Decode(imageBytes);
+        if (baseBitmap is null)
+        {
+            return new JObject() { ["error"] = "Failed to decode source image." };
+        }
+        string watermarkPath = Path.Combine(Utilities.DataDirectory, "watermark.png");
+        if (File.Exists(watermarkPath))
+        {
+            using SKBitmap watermarkBitmap = SKBitmap.Decode(watermarkPath);
+            if (watermarkBitmap is not null && watermarkBitmap.Width <= baseBitmap.Width && watermarkBitmap.Height <= baseBitmap.Height)
+            {
+                int originX = 0, originY = 0;
+                switch (corner)
+                {
+                    case "top-left": break;
+                    case "top-right": originX = baseBitmap.Width - watermarkBitmap.Width; break;
+                    case "bottom-left": originY = baseBitmap.Height - watermarkBitmap.Height; break;
+                    default: originX = baseBitmap.Width - watermarkBitmap.Width; originY = baseBitmap.Height - watermarkBitmap.Height; break;
+                }
+                float opacity = Math.Clamp(alpha, 1, 255) / 255f;
+                for (int wy = 0; wy < watermarkBitmap.Height; wy++)
+                {
+                    for (int wx = 0; wx < watermarkBitmap.Width; wx++)
+                    {
+                        int px = originX + wx;
+                        int py = originY + wy;
+                        SKColor basePixel = baseBitmap.GetPixel(px, py);
+                        SKColor wmPixel = watermarkBitmap.GetPixel(wx, wy);
+                        byte r = Math.Max(basePixel.Red, wmPixel.Red);
+                        byte g = Math.Max(basePixel.Green, wmPixel.Green);
+                        byte b = Math.Max(basePixel.Blue, wmPixel.Blue);
+                        byte finalR = (byte)(basePixel.Red + (r - basePixel.Red) * opacity);
+                        byte finalG = (byte)(basePixel.Green + (g - basePixel.Green) * opacity);
+                        byte finalB = (byte)(basePixel.Blue + (b - basePixel.Blue) * opacity);
+                        baseBitmap.SetPixel(px, py, new SKColor(finalR, finalG, finalB, basePixel.Alpha));
+                    }
+                }
+            }
+        }
+        string outputPath = Program.ServerSettings.Paths.OutputPath;
+        if (Program.ServerSettings.Paths.AppendUserNameToOutputPath)
+        {
+            outputPath = Path.Combine(outputPath, session.User.UserName);
+        }
+        string postProcessDir = Path.Combine(outputPath, "postprocess");
+        Directory.CreateDirectory(postProcessDir);
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            filename = $"postprocess_{DateTimeOffset.UtcNow:yyyy-MM-dd_HH-mm-ss}";
+        }
+        filename = Utilities.StrictFilenameClean(filename);
+        string imgPath = Path.Combine(postProcessDir, $"{filename}.png");
+        string txtPath = Path.Combine(postProcessDir, $"{filename}.txt");
+        using SKImage skImage = SKImage.FromBitmap(baseBitmap);
+        using SKData encoded = skImage.Encode(SKEncodedImageFormat.Png, 100);
+        await File.WriteAllBytesAsync(imgPath, encoded.ToArray());
+        string finalTags = tags.Trim();
+        if (!finalTags.Contains("ai_generated"))
+        {
+            finalTags = $"ai_generated, {finalTags}";
+        }
+        await File.WriteAllTextAsync(txtPath, finalTags);
+        string viewPrefix = Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"View/{session.User.UserName}" : "Output";
+        return new JObject()
+        {
+            ["success"] = true,
+            ["image_path"] = $"{viewPrefix}/postprocess/{filename}.png",
+            ["tags"] = finalTags
+        };
     }
 }

@@ -41,3 +41,4 @@ def register_model_folder(name):
         folder_paths.folder_names_and_paths[name] = (folder_paths.folder_names_and_paths[name][0], folder_paths.supported_pt_extensions)
 
 register_model_folder("yolov8")
+register_model_folder("pixai_tagger")

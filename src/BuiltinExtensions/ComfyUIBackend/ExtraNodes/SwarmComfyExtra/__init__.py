@@ -23,3 +23,10 @@ try:
 except ImportError:
     print("Error: [Swarm] Yolo not available")
     traceback.print_exc()
+# PixAI Tagger needs timm + torchvision
+try:
+    from . import SwarmTagger
+    NODE_CLASS_MAPPINGS.update(SwarmTagger.NODE_CLASS_MAPPINGS)
+except ImportError:
+    print("Error: [Swarm] ImageTagger not available (needs timm, torchvision)")
+    traceback.print_exc()

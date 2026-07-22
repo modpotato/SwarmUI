@@ -22,6 +22,7 @@ class PostProcessTab {
         getRequiredElementById('postprocess_copy_tags_btn').addEventListener('click', () => this.copyTags());
         getRequiredElementById('postprocess_save_tags_btn').addEventListener('click', () => this.saveSidecar());
         getRequiredElementById('postprocess_run_workflow_btn').addEventListener('click', () => this.runWorkflow());
+        getRequiredElementById('postprocess_process_save_btn').addEventListener('click', () => this.processAndSave());
         getRequiredElementById('maintab_postprocess').addEventListener('click', () => this.onTabOpen());
     }
 
@@ -150,15 +151,14 @@ class PostProcessTab {
         statusBtn.disabled = true;
         statusBtn.textContent = 'Tagging...';
         genericRequest('ComfyReadWorkflow', { name: 'swarm_auto_tagger' }, data => {
-            if (data.error) {
-                statusBtn.disabled = false;
-                statusBtn.textContent = 'Auto Tag';
-                showError('Auto-tagger workflow not found. Create a ComfyUI workflow named "swarm_auto_tagger" with the WD tagger node.');
-                return;
-            }
             statusBtn.disabled = false;
             statusBtn.textContent = 'Auto Tag';
-            this.inferredTags.value = 'Auto-tagger workflow found. Use the Generate tab with the tagger workflow to produce tags, then paste them here.';
+            if (data.error) {
+                this.inferredTags.value = '';
+                showError('Auto-tagger workflow not found. Create a ComfyUI workflow named "swarm_auto_tagger" using the SwarmImageTagger node (requires pixai-tagger model files in Models/pixai_tagger/).');
+                return;
+            }
+            this.inferredTags.value = 'Tagger workflow found. Run it from the Generate tab with this image, then paste the output tags here.';
         }, 0, error => {
             statusBtn.disabled = false;
             statusBtn.textContent = 'Auto Tag';
@@ -239,12 +239,15 @@ class PostProcessTab {
         });
     }
 
-    /** Copies the final tags to clipboard. */
+    /** Copies the final tags to clipboard, always including ai_generated. */
     copyTags() {
         let tags = this.finalTags.value.trim();
         if (!tags) {
             showError('No tags to copy.');
             return;
+        }
+        if (!tags.includes('ai_generated')) {
+            tags = `ai_generated, ${tags}`;
         }
         navigator.clipboard.writeText(tags);
     }
@@ -294,6 +297,42 @@ class PostProcessTab {
             status.textContent = 'Workflow loaded. Switch to the Generate tab to run it with this image as init.';
         }, 0, error => {
             status.textContent = `Failed: ${error}`;
+        });
+    }
+
+    /** Full pipeline: watermark, EXIF strip, save to post-process dir with tag sidecar. */
+    processAndSave() {
+        if (!this.currentImageData) {
+            showError('No image selected.');
+            return;
+        }
+        let tags = this.finalTags.value.trim();
+        if (!tags) {
+            showError('No tags in the Final Tag List. Generate or enter tags first.');
+            return;
+        }
+        let btn = getRequiredElementById('postprocess_process_save_btn');
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+        genericRequest('PostProcessAndSave', {
+            image: this.currentImageData,
+            tags: tags,
+            alpha: parseInt(getRequiredElementById('postprocess_wm_alpha').value),
+            corner: getRequiredElementById('postprocess_wm_corner').value
+        }, data => {
+            btn.disabled = false;
+            btn.textContent = 'Process && Save';
+            if (data.success) {
+                this.resultDiv.innerHTML = `<div class="postprocess-empty">Saved to post-process directory.<br/>Tags: ${escapeHtml(data.tags)}</div>`;
+                getRequiredElementById('postprocess_wm_status').textContent = `Saved: ${data.image_path}`;
+            }
+            else if (data.error) {
+                showError(data.error);
+            }
+        }, 0, error => {
+            btn.disabled = false;
+            btn.textContent = 'Process && Save';
+            showError(`Process failed: ${error}`);
         });
     }
 }
