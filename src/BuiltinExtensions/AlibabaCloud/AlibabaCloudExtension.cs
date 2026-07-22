@@ -9,6 +9,7 @@ using SwarmUI.Text2Image;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using System.IO;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using Image = SwarmUI.Utils.Image;
