@@ -7,6 +7,7 @@ using SwarmUI.WebAPI;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
+using System.Net.Http;
 
 namespace SwarmUI.Builtin_PostProcessExtension;
 
