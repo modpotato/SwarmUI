@@ -230,6 +230,11 @@
     border: 1px solid var(--light-border);
     border-radius: 0.5rem;
     background: var(--popup-back);
+    white-space: nowrap;
+}
+
+.alibaba-video-browser-container .browser-fullcontent-container {
+    width: calc(100% - 15rem - 0.7rem);
 }
 
 .alibaba-video-browser-modal-footer {
