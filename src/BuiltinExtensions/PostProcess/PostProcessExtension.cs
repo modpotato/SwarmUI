@@ -73,8 +73,8 @@ public class PostProcessExtension : Extension
             return new JObject() { ["error"] = "No watermark image found. Place a PNG at Data/watermark.png." };
         }
         byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
-        using Image<Rgba32> baseImg = Image.Load<Rgba32>(imageBytes);
-        using Image<Rgba32> wmImg = Image.Load<Rgba32>(watermarkPath);
+        using Image<Rgba32> baseImg = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
+        using Image<Rgba32> wmImg = SixLabors.ImageSharp.Image.Load<Rgba32>(watermarkPath);
         if (wmImg.Width > baseImg.Width || wmImg.Height > baseImg.Height)
         {
             return new JObject() { ["error"] = "Watermark image is larger than the source image." };
@@ -177,11 +177,11 @@ public class PostProcessExtension : Extension
     public static async Task<JObject> PostProcessAndSave(Session session, string image, string tags, int alpha = 10, string corner = "bottom-right", string filename = "")
     {
         byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
-        using Image<Rgba32> baseImg = Image.Load<Rgba32>(imageBytes);
+        using Image<Rgba32> baseImg = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
         string watermarkPath = Path.Combine(Utilities.DataDirectory, "watermark.png");
         if (File.Exists(watermarkPath))
         {
-            using Image<Rgba32> wmImg = Image.Load<Rgba32>(watermarkPath);
+            using Image<Rgba32> wmImg = SixLabors.ImageSharp.Image.Load<Rgba32>(watermarkPath);
             if (wmImg.Width <= baseImg.Width && wmImg.Height <= baseImg.Height)
             {
                 (int originX, int originY) = ComputeOrigin(baseImg.Width, baseImg.Height, wmImg.Width, wmImg.Height, corner);
