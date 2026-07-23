@@ -68,7 +68,7 @@ public class PostProcessExtension : Extension
     /// <summary>Applies a transparent lighten-blend watermark to an image.</summary>
     public static async Task<JObject> ApplyWatermark(Session session, string image, int alpha = 10, string corner = "bottom-right")
     {
-        string watermarkPath = Path.Combine(Utilities.DataDirectory, "watermark.png");
+        string watermarkPath = Path.Combine(Program.DataDir, "watermark.png");
         if (!File.Exists(watermarkPath))
         {
             return new JObject() { ["error"] = "No watermark image found. Place a PNG at Data/watermark.png." };
@@ -162,7 +162,7 @@ public class PostProcessExtension : Extension
         string outputPath = Program.ServerSettings.Paths.OutputPath;
         if (Program.ServerSettings.Paths.AppendUserNameToOutputPath)
         {
-            outputPath = Path.Combine(outputPath, session.User.UserName);
+            outputPath = Path.Combine(outputPath, session.User.UserID);
         }
         string fullPath = Path.GetFullPath(Path.Combine(outputPath, path));
         if (!fullPath.StartsWith(Path.GetFullPath(outputPath)))
@@ -179,7 +179,7 @@ public class PostProcessExtension : Extension
     {
         byte[] imageBytes = Convert.FromBase64String(image.After("base64,"));
         using Image<Rgba32> baseImg = SixLabors.ImageSharp.Image.Load<Rgba32>(imageBytes);
-        string watermarkPath = Path.Combine(Utilities.DataDirectory, "watermark.png");
+        string watermarkPath = Path.Combine(Program.DataDir, "watermark.png");
         if (File.Exists(watermarkPath))
         {
             using Image<Rgba32> wmImg = SixLabors.ImageSharp.Image.Load<Rgba32>(watermarkPath);
@@ -192,7 +192,7 @@ public class PostProcessExtension : Extension
         string outputPath = Program.ServerSettings.Paths.OutputPath;
         if (Program.ServerSettings.Paths.AppendUserNameToOutputPath)
         {
-            outputPath = Path.Combine(outputPath, session.User.UserName);
+            outputPath = Path.Combine(outputPath, session.User.UserID);
         }
         string postProcessDir = Path.Combine(outputPath, "postprocess");
         Directory.CreateDirectory(postProcessDir);
@@ -210,7 +210,7 @@ public class PostProcessExtension : Extension
             finalTags = $"ai_generated, {finalTags}";
         }
         await File.WriteAllTextAsync(txtPath, finalTags);
-        string viewPrefix = Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"View/{session.User.UserName}" : "Output";
+        string viewPrefix = Program.ServerSettings.Paths.AppendUserNameToOutputPath ? $"View/{session.User.UserID}" : "Output";
         return new JObject()
         {
             ["success"] = true,
