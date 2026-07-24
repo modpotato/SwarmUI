@@ -30,6 +30,32 @@ class PromptLLM {
         this.dragOffsetY = 0;
         this.isMinimized = false;
         this.targetPromptBox = null;
+        this.contextProvider = null;
+    }
+
+    /** Returns the prompt text to operate on (generate-tab box by default, or the context provider's). */
+    getPromptSourceText() {
+        if (this.contextProvider) {
+            return this.contextProvider.getPromptText() ?? '';
+        }
+        let box = document.getElementById('alt_prompt_textbox');
+        return box ? box.value : '';
+    }
+
+    /** Returns the raw metadata string for tag extraction (current image by default, or the context provider's). */
+    getMetadataSource() {
+        if (this.contextProvider) {
+            return this.contextProvider.getMetadata() ?? '';
+        }
+        return currentMetadataVal ?? '';
+    }
+
+    /** Returns the current image src for vision (current image by default, or the context provider's), or null. */
+    getCurrentImageSource() {
+        if (this.contextProvider) {
+            return this.contextProvider.getImageSrc() ?? null;
+        }
+        return currentImgSrc ?? null;
     }
 
     /**
@@ -193,9 +219,10 @@ class PromptLLM {
     extractImageMetadata() {
         let hasMetadata = false;
         let tags = '';
-        if (currentMetadataVal) {
+        let metaRaw = this.getMetadataSource();
+        if (metaRaw) {
             try {
-                let readable = interpretMetadata(currentMetadataVal);
+                let readable = interpretMetadata(metaRaw);
                 if (readable) {
                     let metadata = JSON.parse(readable);
                     if (metadata.sui_image_params && metadata.sui_image_params.prompt) {
@@ -236,20 +263,21 @@ class PromptLLM {
 
     /** Convert the current image to a data URL if available. */
     async getCurrentImageDataUrl() {
-        if (!currentImgSrc) {
+        let src = this.getCurrentImageSource();
+        if (!src) {
             return null;
         }
-        if (currentImgSrc.startsWith('data:')) {
-            return currentImgSrc;
+        if (src.startsWith('data:')) {
+            return src;
         }
-        if (this.cachedCurrentImageSrc === currentImgSrc && this.cachedCurrentImageData) {
+        if (this.cachedCurrentImageSrc === src && this.cachedCurrentImageData) {
             return this.cachedCurrentImageData;
         }
         return await new Promise((resolve, reject) => {
             try {
-                toDataURL(currentImgSrc, (url) => {
+                toDataURL(src, (url) => {
                     if (url) {
-                        this.cachedCurrentImageSrc = currentImgSrc;
+                        this.cachedCurrentImageSrc = src;
                         this.cachedCurrentImageData = url;
                         resolve(url);
                     }
@@ -526,8 +554,9 @@ class PromptLLM {
     /**
      * Open the refinement widget and prepare the source.
      */
-    openModal(targetPromptBox) {
+    openModal(targetPromptBox, contextProvider) {
         this.targetPromptBox = targetPromptBox || null;
+        this.contextProvider = contextProvider || null;
         this.initializeContextControls();
 
         // Reset UI state before loading context
@@ -676,8 +705,7 @@ class PromptLLM {
         this.latestImageTags = tags;
 
         const promptToggle = document.getElementById('llm_refine_include_prompt');
-        const promptBox = document.getElementById('alt_prompt_textbox');
-        const promptText = promptBox ? promptBox.value.trim() : '';
+        const promptText = (this.getPromptSourceText() ?? '').trim();
         const includePrompt = !!(promptToggle && !promptToggle.disabled && promptToggle.checked && promptText.length > 0);
 
         const tagsToggle = document.getElementById('llm_refine_include_image_tags');
@@ -761,8 +789,8 @@ class PromptLLM {
         if (sourceDisplay) {
             const parts = [];
             const promptToggle = document.getElementById('llm_refine_include_prompt');
-            const promptBox = document.getElementById('alt_prompt_textbox');
-            const hasPromptText = promptBox && promptBox.value.trim().length > 0;
+            const promptTextVal = this.getPromptSourceText() ?? '';
+            const hasPromptText = promptTextVal.trim().length > 0;
             if (promptToggle && promptToggle.checked) {
                 parts.push(hasPromptText ? 'Current prompt' : 'Current prompt (empty)');
             }

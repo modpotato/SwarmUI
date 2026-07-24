@@ -32,9 +32,25 @@ class AlibabaVideoTab {
     showPromptMenu(e) {
         let rect = e.target.getBoundingClientRect();
         let buttons = [
-            { key: 'llm_refine', label: 'Prompt LLM', title: 'Open Prompt LLM to refine or generate a video prompt', action: () => promptLLM.openModal(this.prompt) }
+            { key: 'llm_refine', label: 'Prompt LLM', title: 'Open Prompt LLM to refine or generate a video prompt', action: () => promptLLM.openModal(this.prompt, this.buildContextProvider()) }
         ];
         new AdvancedPopover('alibaba_video_prompt_menu', buttons, true, rect.x, rect.y + rect.height + 2, e.target.parentElement, null, null, 250);
+    }
+
+    /** Builds a context provider so the shared Prompt LLM widget operates on the video tab's prompt and reference image. */
+    buildContextProvider() {
+        let tab = this;
+        return {
+            getPromptText: () => tab.prompt.value,
+            getMetadata: () => {
+                let first = tab.selectedRefsDiv.querySelector('.alibaba-video-ref-thumb');
+                return first ? (first.dataset.metadata ?? '') : '';
+            },
+            getImageSrc: () => {
+                let first = tab.selectedRefsDiv.querySelector('.alibaba-video-ref-thumb');
+                return first ? (first.dataset.dataUrl ?? null) : null;
+            }
+        };
     }
 
     /** Opens the embedded image history browser modal. */
@@ -60,7 +76,7 @@ class AlibabaVideoTab {
 
     /** Lists images from the output history for the browser. */
     listImagesForBrowser(path, isRefresh, callback, depth) {
-        genericRequest('ListImages', { path: path, depth: depth, sortBy: 'Date', sortReverse: false }, data => {
+        genericRequest('ListImages', { path: path, depth: depth, sortBy: 'Name', sortReverse: false }, data => {
             let folders = data.folders ?? [];
             let files = (data.files ?? []).filter(f => {
                 let lower = f.src.toLowerCase();
@@ -76,28 +92,43 @@ class AlibabaVideoTab {
 
     /** Describes an image for the browser tile display. */
     describeBrowserImage(image) {
+        let parsedMeta = { is_starred: false, sui_image_params: null };
+        if (image.data.metadata) {
+            try {
+                let readable = interpretMetadata(image.data.metadata);
+                if (readable) {
+                    parsedMeta = JSON.parse(readable) || parsedMeta;
+                }
+            }
+            catch (e) {
+            }
+        }
+        let baseName = image.data.name.split('/').pop();
+        let aspectRatio = parsedMeta.sui_image_params?.width && parsedMeta.sui_image_params?.height
+            ? parsedMeta.sui_image_params.width / parsedMeta.sui_image_params.height : null;
         return {
             name: image.data.name,
             description: '',
             buttons: [],
             image: `${image.data.src}?preview=true`,
             dragimage: image.data.src,
-            className: '',
-            searchable: image.data.name,
-            display: 'block'
+            className: parsedMeta.is_starred ? 'image-block-starred' : '',
+            searchable: `${image.data.name}, ${image.data.metadata ?? ''}`,
+            display: baseName,
+            aspectRatio: aspectRatio
         };
     }
 
     /** Handles image selection in the browser. */
     selectBrowserImage(image, div) {
         let src = image.data.src;
-        let idx = this.browserSelectedImages.findIndex(s => s == src);
+        let idx = this.browserSelectedImages.findIndex(r => r.src == src);
         if (idx >= 0) {
             this.browserSelectedImages.splice(idx, 1);
             div.classList.remove('alibaba-video-browser-selected');
         }
         else {
-            this.browserSelectedImages.push(src);
+            this.browserSelectedImages.push({ src: src, metadata: image.data.metadata ?? '' });
             div.classList.add('alibaba-video-browser-selected');
         }
         getRequiredElementById('alibaba_video_browser_count').textContent = `${this.browserSelectedImages.length} selected`;
@@ -105,9 +136,9 @@ class AlibabaVideoTab {
 
     /** Confirms the browser selection and adds images as references. */
     async confirmBrowserSelection() {
-        for (let src of this.browserSelectedImages) {
+        for (let ref of this.browserSelectedImages) {
             try {
-                let response = await fetch(src);
+                let response = await fetch(ref.src);
                 let blob = await response.blob();
                 let dataUrl = await new Promise((resolve, reject) => {
                     let reader = new FileReader();
@@ -115,7 +146,7 @@ class AlibabaVideoTab {
                     reader.onerror = () => reject(new Error('Failed to read image'));
                     reader.readAsDataURL(blob);
                 });
-                this.addSelectedRef(dataUrl, src.split('/').pop());
+                this.addSelectedRef(dataUrl, ref.src.split('/').pop(), ref.metadata);
             }
             catch (error) {
                 showError(`Failed to load image: ${error.message}`);
@@ -127,7 +158,7 @@ class AlibabaVideoTab {
     }
 
     /** Adds a reference image thumbnail to the selected refs display. */
-    addSelectedRef(dataUrl, name) {
+    addSelectedRef(dataUrl, name, metadata = '') {
         let item = createDiv(null, 'alibaba-video-ref-thumb');
         item.innerHTML = `<img src="${dataUrl}" alt="${escapeHtml(name)}" /><button class="alibaba-video-ref-remove" title="Remove">&times;</button><div class="alibaba-video-ref-name">${escapeHtml(name)}</div>`;
         item.querySelector('.alibaba-video-ref-remove').addEventListener('click', () => {
@@ -135,6 +166,7 @@ class AlibabaVideoTab {
             this.syncFileInput();
         });
         item.dataset.dataUrl = dataUrl;
+        item.dataset.metadata = metadata ?? '';
         this.selectedRefsDiv.append(item);
         this.syncFileInput();
     }
